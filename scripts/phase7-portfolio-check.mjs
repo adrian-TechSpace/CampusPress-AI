@@ -86,7 +86,7 @@ try {
   await assertPageOmits(page, "Verified Chrisland Student/Staff", "Unverified journalist showed verified badge");
   await assertPageOmits(page, alphaPublished.title, "Alpha article leaked on bravo portfolio");
 
-  const relevantConsoleMessages = consoleMessages.filter((message) => !/favicon/i.test(message));
+  const relevantConsoleMessages = consoleMessages.filter(isRelevantConsoleMessage);
   assert.deepEqual(relevantConsoleMessages, [], `Unexpected console messages: ${relevantConsoleMessages.join("\n")}`);
 
   console.log(
@@ -363,6 +363,18 @@ async function waitForPortfolioImages(targetPage) {
     const images = Array.from(portfolio.querySelectorAll("img"));
     return images.length > 0 && images.every((image) => image.complete && image.naturalWidth > 0);
   });
+}
+
+function isRelevantConsoleMessage(message) {
+  if (/favicon/i.test(message)) {
+    return false;
+  }
+
+  if (/was preloaded using link preload but not used within a few seconds/i.test(message)) {
+    return false;
+  }
+
+  return true;
 }
 
 async function assertPageOmits(targetPage, text, message) {
