@@ -1,18 +1,40 @@
 ---
 name: campuspress-design
-description: Binding design and frontend specification for CampusPress AI. Read this in full before building or restyling any screen. Defines the aesthetic direction, Chrisland brand tokens, motion system, and per-screen density rules for this specific project. Overrides generic frontend instinct wherever the two conflict.
+description: Binding design and frontend specification for CampusPress AI. Read this in full before building or restyling any screen. Defines the aesthetic direction, Chrisland brand tokens, motion system, and per-screen density rules for this specific project. Overrides generic frontend instinct wherever the two conflict. Supersedes all earlier versions of this file.
 ---
 
-# CampusPress AI Design Skill
+# CampusPress AI Design Skill (v2)
 
 This is not generic frontend guidance. This is the specific design law for a
 university student-journalism platform whose brand is Chrisland purple and gold,
-whose closest quality bar is Medium/Substack for reading and writing, and whose
-data screens (editorial queue, admin dashboard) need to read like a serious SaaS
-tool, not a marketing page. Read this before touching any screen, and re-read the
-relevant section before starting each new phase.
+whose closest visual reference is tesla.com (https://www.tesla.com/) for
+structure, pacing, and restraint, and whose data screens (editorial queue, admin
+dashboard) need to read like a serious SaaS tool, not a marketing page. Read this
+before touching any screen, and re-read the relevant section before starting each
+new phase.
 
----
+## Change log
+
+v2 supersedes v1 on the following points, effective immediately for all screens
+built from this point forward (earlier completed screens should be updated to
+match on next touch, not retroactively hunted down):
+
+- **Light theme only.** Dark mode, system theme, and the theme toggle are
+  removed entirely. Do not build a theme provider, theme toggle, or
+  `[data-theme="dark"]` tokens. One light theme, done well, beats a
+  half-committed dark mode.
+- **Tesla.com is now the explicit structural reference** for the marketing/
+  reading surfaces, on top of the Medium/Substack reading-comfort research
+  already in `CAMPUSPRESS_MASTER_BUILD.md`. Full-bleed hero imagery, large
+  confident headlines, generous negative space, minimal persistent chrome,
+  content revealed in deliberate full-width sections as the user scrolls, subtle
+  glass/translucent overlay cards for stat or feature callouts.
+- **Real photography is now sourced and available**, not a future placeholder
+  problem. See "Approved imagery" below.
+- **Never repurpose the `Badge` component as a banner.** A badge is a small
+  inline pill for status/labels. A hero banner, section header, or full-width
+  callout is its own component. Reusing one for the other produces exactly the
+  flat colored bar this rule now exists to prevent.
 
 ## 0. The one rule that resolves every conflict below
 
@@ -21,55 +43,77 @@ Treat them differently on purpose:
 
 - **Marketing and reading surfaces** — landing page, article reader, portfolio
   pages, onboarding — get the full premium treatment: bold aesthetic commitment,
-  glassmorphism accents, generous motion, a hero that feels considered rather
-  than templated.
+  glassmorphism accents, real photography, generous motion, a hero that feels
+  considered rather than templated. Tesla.com is the pacing and structure
+  reference for these.
 - **Working and data surfaces** — the writer's editor, the editorial review
   queue, the admin dashboard, notifications — get restraint. Data density,
-  clarity, and speed of comprehension beat visual flourish every time. A lecturer
-  reviewing twelve submissions in ten minutes does not want a glassmorphic panel
-  animating in on every click.
+  clarity, and speed of comprehension beat visual flourish every time.
 
-If you're unsure which category a screen falls into, ask: is a user here to be
+If unsure which category a screen falls into, ask: is a user here to be
 persuaded/delighted, or to get work done quickly and correctly? That answer picks
 the section below.
 
----
+## 1. Approved imagery
 
-## 1. Aesthetic direction (marketing/reading surfaces)
+Real, sourced images are available in `assets/` at the project root. Use these,
+not stock placeholders, wherever campus or journalism imagery is called for:
 
-Commit to: **refined editorial premium.** Not maximalist, not playful, not
-brutalist. Think a serious university press crossed with Medium's reading
-comfort and a touch of Chrisland ceremonial gravitas (the crest, the purple and
-gold, "Intellectual Radiance"). The one thing someone should remember: this looks
-like it was built by people who take journalism and craftsmanship seriously, not
-like a hackathon demo.
+- `assets/Chrisland university logo.webp` — the official crest. Use per the
+  logo placement rules below. Never distort, recolor, or place it on a
+  low-contrast background.
+- `assets/Chrisland University College of Law building.jpg` and
+  `assets/Entrance of lecture rooms.jpg` — real Chrisland campus photography.
+  Use for hero backgrounds, about/institution sections, and onboarding.
+- `assets/Jornalism images/` — a folder of journalism-themed photography
+  (reporters, newsrooms, print media) for use on the landing page, portfolio
+  headers, and empty/loading states that benefit from mood imagery.
 
-- **Typography:** Cormorant Garamond for display/headlines, Outfit for body and
-  UI text. Never mix in a third font family anywhere. Max two font weights per
-  screen.
-- **Color:** one neutral base (zinc/slate) + the Chrisland purple as the single
-  accent, gold reserved for genuinely special moments (verification badges,
-  achievement unlocks, the crest itself) — never gold as a general UI color, or
-  it stops meaning anything. No rainbow palettes. No decorative gradients except
-  the one signature hero treatment, used once, not on every card.
-- **Glassmorphism, used deliberately, not everywhere:** reserved for the hero
-  section, the auth/onboarding backdrop, and the portfolio header. A frosted
-  panel over a real photograph (campus life, students writing, the newsroom
-  feel) — never glass-on-glass, never more than one glass layer stacked per
-  screen.
-- **Imagery:** real photographs matching campus/journalism/student-life mood,
-  never stock-photo generic business people, never basic-shape placeholders.
-  State in one line why a chosen image matches the brief before using it.
-- **Backgrounds:** subtle texture or gradient mesh behind the hero only. Every
-  other screen: a clean, near-white or near-black surface per theme, doing its
-  job quietly.
+If a specific screen needs a campus or journalism image not covered by the
+above, search for a real photograph that specifically matches the described
+mood and confirm in one line why it fits, per `AGENTS.md`'s imagery rule. Do not
+default to generic stock photography of unrelated universities when better
+Nigerian-university-appropriate options exist.
 
----
+### Logo placement rules
 
-## 2. Motion system
+The crest appears, at appropriate scale and with real breathing room around it,
+on: the loading/splash state, the landing page hero or nav, the primary nav bar
+across the app, portfolio pages, and any consent/verification modal. It does not
+appear stretched, tinted, or crammed into a banner alongside unrelated text.
+Phase 4 adds one deliberate exception: the reader home may use the crest as the
+floating AI assistant icon, at small scale, because the user explicitly requested
+that treatment for the assistant entry point.
 
-Springs only for anything interactive — never `ease`, `ease-in-out`, or
-`linear` on something a user directly triggers.
+## 2. Aesthetic direction (marketing/reading surfaces)
+
+Commit to: refined editorial premium, Tesla-paced. Full-bleed photography,
+one dominant headline per section, minimal persistent UI, content unfolding in
+deliberate scroll sections rather than everything competing above the fold. Not
+maximalist, not playful, not brutalist. The one thing someone should remember:
+this looks like it was built by people who take journalism and craftsmanship
+seriously.
+
+- Typography: Cormorant Garamond for display/headlines, Outfit for body and
+  UI text. Never mix in a third font family. Max two font weights per screen.
+- Color: one neutral base (zinc/slate, light only) plus Chrisland purple as
+  the single accent, gold reserved for genuinely special moments (verification
+  badges, achievement unlocks, the crest itself), never gold as a general UI
+  color or full-width banner fill. No rainbow palettes. No decorative gradients
+  except one signature hero treatment, used once, not on every card.
+- Glassmorphism, used deliberately, not everywhere: a frosted translucent
+  panel over a real photograph, Tesla-style overlay-card treatment for stat
+  blocks and feature callouts on the hero and about sections, the auth and
+  onboarding backdrop, and the portfolio header. Never glass-on-glass, never
+  more than one glass layer stacked per screen.
+- Backgrounds: full-bleed real photography behind hero sections, subtle
+  texture or gradient mesh only where photography isn't the right choice. Every
+  working/data screen: a clean, near-white surface doing its job quietly.
+
+## 3. Motion system
+
+Springs only for anything interactive, never ease, ease-in-out, or linear on
+something a user directly triggers.
 
 ```js
 const springs = {
@@ -80,92 +124,41 @@ const springs = {
 };
 ```
 
-- **One well-orchestrated moment per screen beats scattered micro-interactions.**
-  On the landing page, that's a staggered hero reveal. On the article reader,
-  it's nothing — reading surfaces should be still, not animated, once loaded.
+- One well-orchestrated moment per screen beats scattered micro-interactions.
+  On the landing page: a staggered hero reveal and scroll-triggered section
+  entrances, Tesla-style. On the article reader: nothing, reading surfaces
+  should be still once loaded.
 - Every animation must answer: what does this movement communicate? If removing
   it doesn't hurt comprehension, remove it.
-- `prefers-reduced-motion` respected everywhere, no exceptions:
+- prefers-reduced-motion respected everywhere, no exceptions.
+- Working/data screens: functional and feedback motion only. No ambient motion,
+  no scroll storytelling.
 
-```css
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-```
+## 4. Working/data surfaces (editor, review queue, admin dashboard)
 
-- Working/data screens (editorial queue, admin dashboard): functional and
-  feedback motion only (loading states, button press, validation). No ambient
-  motion, no scroll storytelling, no ambient particles. Ever.
-- If a hero canvas or 3D touch is used on the landing page, it must degrade to a
-  static image on low-end GPUs, and never appear anywhere outside the landing
-  page and maybe the onboarding welcome screen.
+Unchanged from v1: SaaS-dashboard discipline. Tabular-nums for numeric data,
+CSS Grid sidebar plus main, sticky headers, sortable tables with real empty and
+error states, no 3D charts, no more than five pie segments, always labeled axes
+and tooltips remapped to the Chrisland palette.
 
----
+## 5. Accessibility baseline (every screen, no exceptions)
 
-## 3. Working/data surfaces (editor, review queue, admin dashboard)
+WCAG AA contrast on every color pairing, full keyboard navigation and visible
+focus states, real labels on every form control, meaningful alt text on every
+non-decorative image, including the crest and campus photography.
 
-These screens follow SaaS-dashboard discipline, not marketing-page instinct:
+## 6. Feedback and plain-English law
 
-- Numeric data (scores, counts, percentages) always in a monospace numeral
-  style (tabular-nums), never the display serif.
-- Layout: CSS Grid sidebar + main, sidebar fixed width, sticky header. Metric
-  rows separated by borders, not individual boxed cards, once a screen has more
-  than three or four metrics on it.
-- Tables: sticky header, sortable columns, pagination, explicit empty and error
-  states — never a screen that just looks broken when there's no data yet.
-- The AI analysis report (Phase 5/6) is the most important data screen in the
-  entire app. It must show every model's individual verdict, confidence, and
-  flagged sentence with exact quoted text — never collapse this into a single
-  vague score. This is the flagship feature; the interface must respect that by
-  being legible under real time pressure, not by being decorative.
-- Charts: no 3D charts, no pie charts with more than five segments, always
-  labeled axes and tooltips, always a loading skeleton matching the chart's
-  bounding box, always remapped to the Chrisland palette rather than a library's
-  default colors.
+No bare spinners for anything longer than roughly half a second. Plain-English
+progress such as "Checking grammar and tone..." or "Uploading your draft...".
+Every error states what happened, why, and what to do next. Never a raw system
+error string to a non-technical user.
 
----
+## 7. Before building any individual screen
 
-## 4. Accessibility baseline (every screen, no exceptions)
-
-- Color contrast meets WCAG AA, checked for every new color pairing before it
-  ships, especially purple-on-white and gold-on-white combinations which are
-  easy to get wrong.
-- Full keyboard navigation and visible focus states, including the sidebar and
-  command palette if one exists.
-- Every form control has a real label, not a placeholder pretending to be one.
-- Every non-decorative image has meaningful alt text.
-
----
-
-## 5. Feedback and plain-English law (applies everywhere, ties to AGENTS.md fail-safe rule)
-
-- No bare spinners, anywhere, for any action longer than roughly half a second.
-  Show what's happening in plain English ("Checking grammar and tone...",
-  "Uploading your draft...", "Almost done") and show real progress when the
-  underlying operation has stages, not a fake percentage.
-- Every error message states, in plain English: what happened, why it likely
-  happened, and what the user should do next. Never surface a raw system or API
-  error string to a non-technical user.
-- Success states are calm and clear, not celebratory noise — this is a
-  professional publishing tool, not a game, except for genuine achievement
-  moments in the portfolio/reputation system, where a small, restrained
-  celebratory animation is appropriate.
-
----
-
-## 6. Before building any individual screen
-
-Do not start from a vague instinct. Write a short spec for the screen first —
-what's on it, in what hierarchy, what state it's in when empty/loading/error,
-what motion (if any) it uses, which section of this document governs it
-(marketing/reading vs. working/data) — the same level of concrete detail as a
-fully-specified component brief: exact spacing, exact type scale, exact states,
-not "make it look nice." Vague direction produces generic output; a precise
-spec, even a short one, produces something with actual craft. This applies most
-to the landing page, the article reader, the writer's editor, and the AI
-analysis report, since those four screens are what any visitor or examiner will
-judge the whole project by.
+Write a short concrete spec first: what's on it, in what hierarchy, empty,
+loading, and error states, which section of this document governs it, exact
+spacing and type scale, not "make it look nice." This applies most to the
+landing page, the article reader, the writer's editor, and the AI analysis
+report, since those four screens are what any visitor or examiner will judge
+the whole project by.

@@ -256,6 +256,16 @@ English.
 approved additions, and the result is trustworthy, transparent, and never
 silently incomplete.
 
+**Current status note, July 25, 2026:** Phase 5 is in a known partial state, not
+complete. Six of eight signals are live and verified with real evidence:
+HuggingFace fake-news detection, Cardiff RoBERTa sentiment, LanguageTool,
+pg_trgm plagiarism/originality, TF-IDF, and rule-based credibility scoring. The
+OpenAI-dependent LLM editorial pass and the multi-pass verification layer are
+implemented in code but remain unverified until OpenAI billing is active again.
+Editor-facing reports must show this honestly by rendering the six working
+signals normally and showing a clear temporarily unavailable note for the AI
+editorial judgment and verification pass when those OpenAI checks fail.
+
 - Wire all 8 models: LLM grammar/bias/credibility (OpenAI now, Claude added later
   behind the same interface), HuggingFace BERT fake-news, Cardiff RoBERTa
   sentiment, pg_trgm plagiarism, rule-based 9-point credibility scoring,

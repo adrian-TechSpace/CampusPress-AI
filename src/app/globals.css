@@ -18,28 +18,9 @@
   --accent-foreground: #3b0764;
   --badge: #b88700;
   --badge-foreground: #18181b;
+  --destructive: #b42318;
   --chrisland-purple: #4c1d95;
   --chrisland-gold: #b88700;
-}
-
-[data-theme="dark"] {
-  color-scheme: dark;
-  --background: #09090b;
-  --foreground: #fafafa;
-  --card: #18181b;
-  --card-foreground: #fafafa;
-  --muted: #27272a;
-  --muted-foreground: #d4d4d8;
-  --border: #3f3f46;
-  --ring: #8b5cf6;
-  --primary: #8b5cf6;
-  --primary-foreground: #ffffff;
-  --secondary: #27272a;
-  --secondary-foreground: #fafafa;
-  --accent: #2e1065;
-  --accent-foreground: #f5f3ff;
-  --badge: #f4c542;
-  --badge-foreground: #18181b;
 }
 
 @theme inline {
@@ -59,6 +40,7 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-badge: var(--badge);
   --color-badge-foreground: var(--badge-foreground);
+  --color-destructive: var(--destructive);
   --font-sans: var(--font-outfit);
   --font-serif: var(--font-cormorant);
 }
@@ -72,6 +54,92 @@ body {
 ::selection {
   background: var(--accent);
   color: var(--accent-foreground);
+}
+
+.grammar-issue {
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: var(--destructive);
+  text-underline-offset: 4px;
+}
+
+.writer-rich-editor,
+.reader-rich-body {
+  white-space: normal;
+}
+
+.writer-rich-editor:empty::before {
+  color: var(--muted-foreground);
+  content: "Start drafting. Keep paragraphs short, name your sources, and separate confirmed facts from open questions.";
+  pointer-events: none;
+}
+
+.writer-rich-editor p,
+.reader-rich-body p {
+  margin: 0 0 1.5rem;
+}
+
+.writer-rich-editor h2,
+.reader-rich-body h2 {
+  font-family: var(--font-cormorant), Georgia, serif;
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 1.15;
+  margin: 2rem 0 1rem;
+}
+
+.writer-rich-editor blockquote,
+.reader-rich-body blockquote {
+  border-left: 4px solid var(--chrisland-purple);
+  color: var(--muted-foreground);
+  font-family: var(--font-cormorant), Georgia, serif;
+  font-size: 1.5rem;
+  line-height: 1.4;
+  margin: 2rem 0;
+  padding-left: 1.5rem;
+}
+
+.writer-rich-editor ul,
+.writer-rich-editor ol,
+.reader-rich-body ul,
+.reader-rich-body ol {
+  margin: 1.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.writer-rich-editor ul,
+.reader-rich-body ul {
+  list-style: disc;
+}
+
+.writer-rich-editor ol,
+.reader-rich-body ol {
+  list-style: decimal;
+}
+
+.writer-rich-editor li,
+.reader-rich-body li {
+  margin: 0.5rem 0;
+}
+
+.writer-rich-editor figure,
+.reader-rich-body figure {
+  margin: 2rem 0;
+}
+
+.writer-rich-editor figure img,
+.reader-rich-body figure img {
+  border-radius: 0.375rem;
+  display: block;
+  max-width: 100%;
+}
+
+.writer-rich-editor figcaption,
+.reader-rich-body figcaption {
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  margin-top: 0.75rem;
 }
 
 @media (prefers-reduced-motion: reduce) {
