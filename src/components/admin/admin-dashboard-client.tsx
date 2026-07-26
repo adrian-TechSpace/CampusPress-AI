@@ -95,7 +95,7 @@ export function AdminDashboardClient() {
       },
       body,
     });
-    const result = (await response.json().catch(() => ({}))) as { ok?: boolean; message?: string; authorizationUrl?: string; simulated?: boolean };
+    const result = (await response.json().catch(() => ({}))) as { ok?: boolean; message?: string; authorizationUrl?: string };
     setActing(false);
 
     if (!response.ok || !result.ok) {
@@ -148,16 +148,9 @@ export function AdminDashboardClient() {
     }
   }
 
-  async function runPaystackTest() {
-    const result = await adminPost("/api/admin/paystack/initialize", JSON.stringify({}));
+  async function runFlutterwaveTest() {
+    const result = await adminPost("/api/admin/flutterwave/initialize", JSON.stringify({}));
     if (!result?.authorizationUrl) {
-      return;
-    }
-
-    if (result.simulated) {
-      const callbackUrl = new URL(result.authorizationUrl);
-      const callback = await fetch(`${callbackUrl.pathname}${callbackUrl.search}`);
-      await loadOverview(callback.ok ? "Local Paystack test payment completed." : "Local Paystack callback failed.");
       return;
     }
 
@@ -191,7 +184,7 @@ export function AdminDashboardClient() {
               <div className="grid gap-3">
                 <h1 className="font-serif text-5xl font-semibold leading-tight">Platform controls</h1>
                 <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-                  Manage users, roster verification, moderation, AI cost monitoring, and Paystack test-mode records from one workspace.
+                  Manage users, roster verification, moderation, AI cost monitoring, and Flutterwave test-mode records from one workspace.
                 </p>
               </div>
               <Button disabled={loading || acting} onClick={() => void loadOverview()} type="button" variant="outline">
@@ -225,7 +218,7 @@ export function AdminDashboardClient() {
                 />
                 <UsagePanel overview={overview} />
               </div>
-              <PaystackPanel acting={acting} onRunTest={runPaystackTest} overview={overview} />
+              <FlutterwavePanel acting={acting} onRunTest={runFlutterwaveTest} overview={overview} />
             </>
           ) : (
             <div className="rounded-md border bg-card p-6 text-sm leading-6 text-muted-foreground">
@@ -447,7 +440,7 @@ function UsagePanel({ overview }: { overview: AdminOverview }) {
   );
 }
 
-function PaystackPanel({
+function FlutterwavePanel({
   acting,
   onRunTest,
   overview,
@@ -460,18 +453,18 @@ function PaystackPanel({
     <section className="grid gap-5 rounded-md border bg-card p-5">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="grid gap-2">
-          <h2 className="text-xl font-semibold">Paystack monetisation scaffolding</h2>
+          <h2 className="text-xl font-semibold">Flutterwave monetisation scaffolding</h2>
           <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-            Test-mode payments write to `payments` and activate `subscriptions`. Without a Paystack secret, CampusPress uses a local test callback.
+            Test-mode Standard Checkout payments write to `payments` and activate `subscriptions` after server-side verification.
           </p>
         </div>
-        <Button aria-label="Run Paystack test transaction" disabled={acting} onClick={onRunTest} type="button">
+        <Button aria-label="Run Flutterwave test transaction" disabled={acting} onClick={onRunTest} type="button">
           <Banknote aria-hidden />
           Run test transaction
         </Button>
       </div>
-      <Badge className="w-fit" variant={overview.monetisation.paystackConfigured ? "verified" : "outline"}>
-        {overview.monetisation.paystackConfigured ? "Paystack secret configured" : "Local test mode"}
+      <Badge className="w-fit" variant={overview.monetisation.flutterwaveConfigured ? "verified" : "outline"}>
+        {overview.monetisation.flutterwaveConfigured ? "Flutterwave keys configured" : "Flutterwave keys missing"}
       </Badge>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="grid gap-3">

@@ -338,14 +338,14 @@ test mode even if monetisation isn't launched on day one.
 
 - Admin dashboard: user management, content moderation, AI cost/usage monitoring
   (`ai_usage_log`), platform-wide analytics, roster CSV upload interface.
-- Paystack integration in test mode: subscriptions/payments tables wired, webhook
-  handling with the same fail-safe plain-English error handling as everything
-  else.
+- Flutterwave Standard Checkout integration in test mode: subscriptions/payments
+  tables wired, webhook handling with the same fail-safe plain-English error
+  handling as everything else.
 
 **Acceptance:** an admin can suspend a user, review flagged content, upload a
 roster CSV and see it retroactively verify matching profiles, and see current AI
-API usage/cost at a glance; a test-mode Paystack transaction completes end to end
-and updates `payments`/`subscriptions` correctly.
+API usage/cost at a glance; a test-mode Flutterwave transaction completes end to
+end and updates `payments`/`subscriptions` correctly.
 
 ---
 
@@ -374,7 +374,7 @@ it.
   mode.
 - Every scheduled job manually triggered once more with `job_run_log` inspected.
 - Every external API failure mode (OpenAI/Claude down, HuggingFace throttled,
-  Supabase Storage timeout, Vercel deploy failure, Paystack webhook delay, Resend
+  Supabase Storage timeout, Vercel deploy failure, Flutterwave webhook delay, Resend
   send failure) deliberately tested, not assumed.
 - Anthropic Claude API key added (once funded) behind the existing
   provider-agnostic AI interface; confirm both providers can serve the same

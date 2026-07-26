@@ -94,19 +94,37 @@ try {
   const hiddenComment = await commentState(comment.id);
   assert.equal(hiddenComment.is_hidden, true, "Hide comment action must set is_hidden");
 
-  await page.getByRole("button", { name: "Run Paystack test transaction" }).click();
-  await expectText(page, "Local Paystack test payment completed.");
+  await page.getByRole("button", { name: "Run Flutterwave test transaction" }).click();
+  await page.waitForURL(/checkout(?:-v2\.dev-flutterwave|\.flutterwave)\.com|\/api\/flutterwave\/callback/, { timeout: 45000 });
+  if (/checkout(?:-v2\.dev-flutterwave|\.flutterwave)\.com/.test(page.url())) {
+    await completeFlutterwaveCheckout(page);
+  }
+  await page.waitForURL(/\/api\/flutterwave\/callback/, { timeout: 120000 });
+  await expectText(page, "CampusPress payment verified");
   const paymentRows = await admin
     .from("payments")
-    .select("id, status, subscription_id")
+    .select("id, provider, status, subscription_id")
     .eq("user_id", adminUser.id)
+    .eq("provider", "flutterwave")
     .order("created_at", { ascending: false })
     .limit(1);
   assert.ifError(paymentRows.error);
-  assert.equal(paymentRows.data?.[0]?.status, "succeeded", "Paystack test payment must complete");
+  assert.equal(paymentRows.data?.[0]?.provider, "flutterwave", "Flutterwave test payment must use the Flutterwave provider");
+  assert.equal(paymentRows.data?.[0]?.status, "succeeded", "Flutterwave test payment must complete");
   assert.ok(paymentRows.data?.[0]?.subscription_id, "Payment must link to a subscription");
   ids.payments.push(paymentRows.data[0].id);
   ids.subscriptions.push(paymentRows.data[0].subscription_id);
+  const subscriptionRows = await admin
+    .from("subscriptions")
+    .select("id, provider, status")
+    .eq("id", paymentRows.data[0].subscription_id)
+    .single();
+  assert.ifError(subscriptionRows.error);
+  assert.equal(subscriptionRows.data.provider, "flutterwave", "Subscription must use the Flutterwave provider");
+  assert.equal(subscriptionRows.data.status, "active", "Subscription must be active after Flutterwave verification");
+  await page.goto(`${appUrl}/dashboard/admin`, { waitUntil: "networkidle" });
+  await page.getByTestId("admin-dashboard").waitFor({ timeout: 30000 });
+  await expectText(page, "Flutterwave monetisation scaffolding");
 
   await page.screenshot({ path: `${outDir}/admin-dashboard-1440-after.png`, fullPage: true });
   await page.setViewportSize({ width: 375, height: 900 });
@@ -126,7 +144,7 @@ try {
         userSuspensionWorked: true,
         articleModerationWorked: true,
         commentModerationWorked: true,
-        paystackTestPaymentCompleted: true,
+        flutterwaveTestPaymentCompleted: true,
         screenshotsDirectory: outDir,
       },
       null,
@@ -134,6 +152,7 @@ try {
     ),
   );
 } catch (error) {
+  await page.screenshot({ path: `${outDir}/phase8-failure.png`, fullPage: true }).catch(() => {});
   console.error(
     JSON.stringify(
       {
@@ -301,6 +320,176 @@ async function commentState(commentId) {
 
 async function expectText(targetPage, text) {
   await targetPage.getByText(text, { exact: false }).first().waitFor({ timeout: 30000 });
+}
+
+async function completeFlutterwaveCheckout(targetPage) {
+  const cardNumber = "5531886652142950";
+  const expiry = "09/32";
+  const cvv = "564";
+  const pin = "3310";
+  const otp = "12345";
+  const checkoutFrame = await waitForCheckoutFrame(targetPage);
+
+  if (process.env.PHASE8_DEBUG_CHECKOUT === "1") {
+    console.log(JSON.stringify({ checkoutFrames: targetPage.frames().map((frame) => ({ name: frame.name(), url: frame.url() })) }, null, 2));
+    const fields = await checkoutFrame.locator("input, button").evaluateAll((nodes) =>
+      nodes.map((node) => ({
+        tagName: node.tagName,
+        name: node.getAttribute("name"),
+        type: node.getAttribute("type"),
+        placeholder: node.getAttribute("placeholder"),
+        ariaLabel: node.getAttribute("aria-label"),
+        text: node.textContent?.slice(0, 80) ?? "",
+      })),
+    );
+    console.log(JSON.stringify({ checkoutFields: fields }, null, 2));
+  }
+
+  if (process.env.PHASE8_FLUTTERWAVE_METHOD === "bank-transfer") {
+    await checkoutFrame.locator("body").click({ force: true, position: { x: 1105, y: 405 } });
+    await targetPage.waitForTimeout(3000);
+    if (!await clickFirstAvailable(checkoutFrame, [
+      'button:has-text("Pay")',
+      'button:has-text("Proceed")',
+      'button:has-text("Confirm")',
+      'button:has-text("I have made this bank transfer")',
+      'button[type="submit"]',
+    ], true)) {
+      await targetPage.mouse.click(620, 730);
+      await targetPage.waitForTimeout(3000);
+      await targetPage.mouse.click(620, 840);
+    }
+    return;
+  }
+
+  await checkoutFrame.getByText(/card/i).first().click({ timeout: 30000 }).catch(() => {});
+  const usedCoordinateCardEntry = !await fillFirstAvailable(checkoutFrame, [
+    'input[name="card_number"]',
+    'input[name="cardNumber"]',
+    'input[name="cardno"]',
+    'input[placeholder*="Card"]',
+    'input[aria-label*="Card"]',
+  ], cardNumber, true);
+
+  if (usedCoordinateCardEntry) {
+    await targetPage.mouse.click(540, 440);
+    await targetPage.keyboard.press("Control+A");
+    await typeCharacters(targetPage, cardNumber);
+    await targetPage.mouse.click(480, 560);
+    await typeCharacters(targetPage, expiry);
+    await targetPage.mouse.click(690, 560);
+    await targetPage.keyboard.press("Control+A");
+    await typeCharacters(targetPage, cvv);
+  }
+
+  if (!usedCoordinateCardEntry && !await fillFirstAvailable(checkoutFrame, [
+    'input[name="expiry"]',
+    'input[name="expiry_date"]',
+    'input[name="expiryMonth"]',
+    'input[placeholder*="MM"]',
+    'input[aria-label*="Expiry"]',
+  ], expiry, true)) {
+    await targetPage.mouse.click(500, 560);
+    await targetPage.keyboard.press("Control+A");
+    await typeCharacters(targetPage, expiry);
+  }
+  if (!usedCoordinateCardEntry && !await fillFirstAvailable(checkoutFrame, [
+    'input[name="cvv"]',
+    'input[name="cvvno"]',
+    'input[placeholder*="CVV"]',
+    'input[aria-label*="CVV"]',
+  ], cvv, true)) {
+    await targetPage.mouse.click(720, 560);
+    await targetPage.keyboard.press("Control+A");
+    await typeCharacters(targetPage, cvv);
+  }
+  if (!await clickFirstAvailable(checkoutFrame, [
+    'button:has-text("Pay")',
+    'button:has-text("Complete")',
+    'button[type="submit"]',
+  ], true)) {
+    await targetPage.keyboard.press("Enter");
+    await targetPage.waitForTimeout(1000);
+    if (/checkout(?:-v2\.dev-flutterwave|\.flutterwave)\.com/.test(targetPage.url())) {
+      await targetPage.mouse.click(620, 730);
+    }
+    await targetPage.waitForTimeout(1000);
+    if (/checkout(?:-v2\.dev-flutterwave|\.flutterwave)\.com/.test(targetPage.url())) {
+      await targetPage.mouse.click(620, 890);
+    }
+  }
+  await targetPage.waitForTimeout(3000);
+  if (await fillFirstAvailable(checkoutFrame, [
+    'input[name="pin"]',
+    'input[placeholder*="PIN"]',
+    'input[aria-label*="PIN"]',
+  ], pin, true)) {
+    await clickFirstAvailable(checkoutFrame, [
+      'button:has-text("Continue")',
+      'button:has-text("Submit")',
+      'button:has-text("Pay")',
+      'button[type="submit"]',
+    ], true);
+  }
+  await targetPage.waitForTimeout(3000);
+  if (await fillFirstAvailable(checkoutFrame, [
+    'input[name="otp"]',
+    'input[placeholder*="OTP"]',
+    'input[aria-label*="OTP"]',
+  ], otp, true)) {
+    await clickFirstAvailable(checkoutFrame, [
+      'button:has-text("Continue")',
+      'button:has-text("Submit")',
+      'button:has-text("Validate")',
+      'button[type="submit"]',
+    ], true);
+  }
+}
+
+async function waitForCheckoutFrame(targetPage) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const frame = targetPage.frame({ name: "checkout" }) ?? targetPage.frames().find((item) => /checkout-v3|checkout-v2|flutterwave/i.test(item.url()));
+    if (frame) {
+      return frame;
+    }
+    await targetPage.waitForTimeout(500);
+  }
+  throw new Error("Flutterwave checkout iframe did not load.");
+}
+
+async function fillFirstAvailable(targetPage, selectors, value, optional = false) {
+  for (const selector of selectors) {
+    const locator = targetPage.locator(selector).first();
+    if (await locator.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await locator.fill(value);
+      return true;
+    }
+  }
+  if (optional) {
+    return false;
+  }
+  throw new Error(`Could not find a checkout field for ${selectors.join(", ")}`);
+}
+
+async function typeCharacters(targetPage, value) {
+  for (const char of value) {
+    await targetPage.keyboard.press(char);
+    await targetPage.waitForTimeout(120);
+  }
+}
+
+async function clickFirstAvailable(targetPage, selectors, optional = false) {
+  for (const selector of selectors) {
+    const locator = targetPage.locator(selector).first();
+    if (await locator.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await locator.click();
+      return true;
+    }
+  }
+  if (optional) {
+    return false;
+  }
+  throw new Error(`Could not find a checkout button for ${selectors.join(", ")}`);
 }
 
 function isRelevantConsoleMessage(message) {

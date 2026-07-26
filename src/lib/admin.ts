@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
+import { flutterwaveConfigured } from "@/lib/flutterwave";
 import { createServiceSupabaseClient } from "@/lib/supabase-server";
 
 export type AdminProfile = {
@@ -31,7 +32,7 @@ export type AdminOverview = {
   monetisation: {
     payments: AdminPaymentRow[];
     subscriptions: AdminSubscriptionRow[];
-    paystackConfigured: boolean;
+    flutterwaveConfigured: boolean;
   };
   roster: {
     rows: AdminRosterRow[];
@@ -303,7 +304,7 @@ export async function loadAdminOverview(supabase = createServiceSupabaseClient()
     monetisation: {
       payments,
       subscriptions,
-      paystackConfigured: Boolean(process.env.PAYSTACK_SECRET_KEY),
+      flutterwaveConfigured: flutterwaveConfigured(),
     },
     roster: { rows: rosterRows, latestJob },
   };
