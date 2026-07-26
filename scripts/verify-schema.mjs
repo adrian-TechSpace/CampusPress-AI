@@ -2,8 +2,12 @@ import { existsSync, readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 
 const migrationPath = "supabase/migrations/202607200001_phase_1_foundation.sql";
+const phase8MigrationPath = "supabase/migrations/202607260001_phase_8_admin_scaffolding.sql";
 const edgeFunctionPath = "supabase/functions/roster-cross-check/index.ts";
-const sql = existsSync(migrationPath) ? readFileSync(migrationPath, "utf8") : "";
+const sql = [migrationPath, phase8MigrationPath]
+  .filter((path) => existsSync(path))
+  .map((path) => readFileSync(path, "utf8"))
+  .join("\n");
 
 const requiredTables = [
   "profiles",
@@ -41,10 +45,13 @@ for (const table of requiredTables) {
 
 assert.match(sql, /verified\s+boolean\s+not\s+null\s+default\s+false/i, "profiles.verified default is missing");
 assert.match(sql, /verified_at\s+timestamptz/i, "profiles.verified_at is missing");
+assert.match(sql, /suspended_at\s+timestamptz/i, "profiles.suspended_at is missing");
+assert.match(sql, /suspension_reason\s+text/i, "profiles.suspension_reason is missing");
 
 const requiredFunctions = [
   "is_admin",
   "is_editor",
+  "is_suspended",
   "run_roster_cross_check",
   "handle_article_publish_count",
   "recalculate_profile_credibility",

@@ -117,7 +117,7 @@ export async function loadJournalistPortfolio(username: string): Promise<Journal
     .from("profiles")
     .select("id, full_name, username, bio, department_code, verified, verified_at, article_count, credibility_score, created_at")
     .eq("username", cleanUsername)
-    .eq("role", "journalist")
+    .in("role", ["journalist", "editor"])
     .maybeSingle();
 
   const profileUsername = profile?.username;

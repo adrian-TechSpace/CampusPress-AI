@@ -8,6 +8,7 @@ import {
 } from "@/lib/onboarding";
 import { ReaderHomeClient } from "@/components/reader/reader-home-client";
 import { AuthenticatedShell } from "@/components/reader/authenticated-rail";
+import { AdminDashboardClient } from "@/components/admin/admin-dashboard-client";
 
 type DashboardRolePageProps = {
   params: Promise<{
@@ -32,6 +33,10 @@ export default async function DashboardRolePage({ params }: DashboardRolePagePro
         </AuthenticatedShell>
       </main>
     );
+  }
+
+  if (typedRole === "admin") {
+    return <AdminDashboardClient />;
   }
 
   return (

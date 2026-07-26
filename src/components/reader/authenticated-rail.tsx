@@ -22,6 +22,7 @@ import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
 type Profile = {
   full_name: string;
   role: string;
+  username: string | null;
 };
 
 type RailItem = {
@@ -58,7 +59,7 @@ export function AuthenticatedRail() {
 
       const { data } = await supabase
         .from("profiles")
-        .select("full_name, role")
+        .select("full_name, role, username")
         .eq("id", userId)
         .single();
 
@@ -110,14 +111,18 @@ export function AuthenticatedRail() {
       </nav>
 
       <div className="mt-auto grid gap-2 border-t p-3" data-testid="signed-in-nav">
-        <div className="flex min-w-0 items-center gap-3 rounded-md px-2 py-2">
+        <Link
+          aria-label={`Open ${profile?.full_name ?? "signed-in user"} profile`}
+          className="flex min-w-0 items-center gap-3 rounded-md px-2 py-2 hover:bg-accent"
+          href={profileChipHref(profile)}
+        >
           <span className="grid size-8 shrink-0 place-items-center rounded-md bg-primary text-sm font-semibold text-primary-foreground">
             {initials(profile?.full_name ?? "User")}
           </span>
           <span className="w-0 truncate text-sm font-semibold opacity-0 transition-opacity duration-150 group-hover:w-auto group-hover:opacity-100 group-focus-within:w-auto group-focus-within:opacity-100">
             {profile?.full_name ?? "Signed in"}
           </span>
-        </div>
+        </Link>
         <Button
           className="justify-start gap-4 px-2"
           onClick={signOut}
@@ -167,6 +172,18 @@ function roleHomeHref(role: string) {
     return "/dashboard/reader";
   }
   return `/dashboard/${role}`;
+}
+
+function profileChipHref(profile: Profile | null) {
+  if (!profile) {
+    return "/auth";
+  }
+
+  if ((profile.role === "journalist" || profile.role === "editor") && profile.username) {
+    return `/portfolio/${profile.username}`;
+  }
+
+  return roleHomeHref(profile.role);
 }
 
 function initials(value: string) {
