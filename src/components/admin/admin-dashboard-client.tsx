@@ -45,7 +45,7 @@ export function AdminDashboardClient() {
     return data.session?.access_token ?? null;
   }, [supabase]);
 
-  const loadOverview = useCallback(async () => {
+  const loadOverview = useCallback(async (successMessage = "Administration workspace loaded.") => {
     const token = await accessToken();
     if (!token) {
       setLoading(false);
@@ -66,7 +66,7 @@ export function AdminDashboardClient() {
 
     setForbidden(false);
     setOverview(result.overview);
-    setMessage("Administration workspace loaded.");
+    setMessage(successMessage);
   }, [accessToken]);
 
   useEffect(() => {
@@ -117,7 +117,7 @@ export function AdminDashboardClient() {
       }),
     );
     if (result) {
-      await loadOverview();
+      await loadOverview(result.message);
     }
   }
 
@@ -127,7 +127,7 @@ export function AdminDashboardClient() {
       JSON.stringify({ targetType: "article", targetId, action }),
     );
     if (result) {
-      await loadOverview();
+      await loadOverview(result.message);
     }
   }
 
@@ -137,14 +137,14 @@ export function AdminDashboardClient() {
       JSON.stringify({ targetType: "comment", targetId, hidden }),
     );
     if (result) {
-      await loadOverview();
+      await loadOverview(result.message);
     }
   }
 
   async function uploadRoster() {
     const result = await adminPost("/api/admin/roster/upload", rosterCsv, "text/csv");
     if (result) {
-      await loadOverview();
+      await loadOverview(result.message);
     }
   }
 
@@ -157,8 +157,7 @@ export function AdminDashboardClient() {
     if (result.simulated) {
       const callbackUrl = new URL(result.authorizationUrl);
       const callback = await fetch(`${callbackUrl.pathname}${callbackUrl.search}`);
-      await loadOverview();
-      setMessage(callback.ok ? "Local Paystack test payment completed." : "Local Paystack callback failed.");
+      await loadOverview(callback.ok ? "Local Paystack test payment completed." : "Local Paystack callback failed.");
       return;
     }
 
@@ -195,7 +194,7 @@ export function AdminDashboardClient() {
                   Manage users, roster verification, moderation, AI cost monitoring, and Paystack test-mode records from one workspace.
                 </p>
               </div>
-              <Button disabled={loading || acting} onClick={loadOverview} type="button" variant="outline">
+              <Button disabled={loading || acting} onClick={() => void loadOverview()} type="button" variant="outline">
                 {loading ? <Loader2 aria-hidden className="animate-spin" /> : <RefreshCcw aria-hidden />}
                 Refresh
               </Button>
