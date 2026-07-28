@@ -162,6 +162,14 @@ export async function applyFlutterwaveChargeSuccess(
   if (payment.amountKobo !== charge.amountKobo || payment.currency !== charge.currency) {
     throw new Error("The Flutterwave transaction amount does not match the pending CampusPress payment.");
   }
+  if (payment.status === "succeeded" && payment.subscriptionId) {
+    return {
+      paymentId: payment.id,
+      status: payment.status,
+      subscriptionId: payment.subscriptionId,
+      message: "Flutterwave test payment already completed.",
+    };
+  }
 
   const { data: subscription, error: subscriptionError } = await supabase
     .from("subscriptions")
@@ -233,7 +241,7 @@ function flutterwaveSecret() {
 async function loadPaymentByReference(supabase: SupabaseClient, reference: string) {
   const { data, error } = await supabase
     .from("payments")
-    .select("id, user_id, amount_kobo, currency")
+    .select("id, user_id, subscription_id, amount_kobo, currency, status")
     .eq("provider", "flutterwave")
     .eq("provider_reference", reference)
     .single();
@@ -245,7 +253,9 @@ async function loadPaymentByReference(supabase: SupabaseClient, reference: strin
   return {
     id: data.id as string,
     userId: data.user_id as string,
+    subscriptionId: data.subscription_id as string | null,
     amountKobo: Number(data.amount_kobo ?? 0),
     currency: String(data.currency ?? "NGN"),
+    status: String(data.status ?? "pending"),
   };
 }
