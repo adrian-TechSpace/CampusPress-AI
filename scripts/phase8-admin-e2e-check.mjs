@@ -61,7 +61,7 @@ try {
     `MAS,${journalist.matricOrStaffId},${journalist.fullName},journalist`,
   ].join("\n");
   await page.locator("textarea").fill(rosterCsv);
-  await page.getByRole("button", { name: "Upload roster CSV" }).click();
+  await page.getByRole("button", { name: "Confirm roster CSV upload" }).click();
   await expectText(page, "Roster upload saved");
   const { data: verifiedProfile, error: verifiedError } = await admin
     .from("profiles")

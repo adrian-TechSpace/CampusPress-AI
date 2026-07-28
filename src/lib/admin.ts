@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import { flutterwaveConfigured } from "@/lib/flutterwave";
+import { parseRosterCsv, type RosterDataKind } from "@/lib/roster-csv";
 import { createServiceSupabaseClient } from "@/lib/supabase-server";
 
 export type AdminProfile = {
@@ -118,15 +119,6 @@ export type AdminJobRow = {
   endedAt: string | null;
   errorMessage: string | null;
 };
-
-type CsvRosterRow = {
-  department_code: string;
-  matric_or_staff_id: string;
-  full_name: string;
-  role: string;
-};
-
-const validRosterRoles = new Set(["reader", "journalist", "editor", "admin"]);
 
 export async function authenticateAdminRequest(request: Request) {
   const authorization = request.headers.get("authorization");
@@ -407,8 +399,8 @@ export async function moderateComment(
   };
 }
 
-export async function ingestRosterCsv(supabase: SupabaseClient, actorId: string, csv: string) {
-  const rows = parseRosterCsv(csv);
+export async function ingestRosterCsv(supabase: SupabaseClient, actorId: string, csv: string, dataKind: RosterDataKind = "student") {
+  const rows = parseRosterCsv(csv, dataKind);
   if (rows.length === 0) {
     throw new Error("Add at least one roster row before uploading.");
   }
@@ -457,95 +449,6 @@ export async function ingestRosterCsv(supabase: SupabaseClient, actorId: string,
     matchedProfiles,
     message: `Roster upload saved ${rows.length} ${rows.length === 1 ? "row" : "rows"} and verified ${matchedProfiles} matching ${matchedProfiles === 1 ? "profile" : "profiles"}.`,
   };
-}
-
-function parseRosterCsv(csv: string): CsvRosterRow[] {
-  const records = parseCsv(csv.trim());
-  if (records.length < 2) {
-    return [];
-  }
-
-  const headers = records[0].map((header) => header.trim().toLowerCase());
-  const required = ["department_code", "matric_or_staff_id", "full_name", "role"];
-  for (const header of required) {
-    if (!headers.includes(header)) {
-      throw new Error(`Roster CSV is missing the ${header} header.`);
-    }
-  }
-
-  return records.slice(1).map((record, index) => {
-    const row = Object.fromEntries(headers.map((header, columnIndex) => [header, record[columnIndex]?.trim() ?? ""]));
-    const departmentCode = row.department_code.toUpperCase();
-    const matricOrStaffId = row.matric_or_staff_id.toUpperCase();
-    const fullName = row.full_name.replace(/\s+/g, " ").trim();
-    const role = row.role.toLowerCase();
-
-    if (!/^[A-Z]{2,4}$/.test(departmentCode)) {
-      throw new Error(`Roster row ${index + 2} has an invalid department code.`);
-    }
-    if (!/^[A-Z]{2,4}\/[0-9]{4}\/[0-9]{3}$/.test(matricOrStaffId)) {
-      throw new Error(`Roster row ${index + 2} has an invalid matric or staff ID.`);
-    }
-    if (fullName.length < 2) {
-      throw new Error(`Roster row ${index + 2} needs a full name.`);
-    }
-    if (!validRosterRoles.has(role)) {
-      throw new Error(`Roster row ${index + 2} has an invalid role.`);
-    }
-
-    return {
-      department_code: departmentCode,
-      matric_or_staff_id: matricOrStaffId,
-      full_name: fullName,
-      role,
-    };
-  });
-}
-
-function parseCsv(value: string) {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let quoted = false;
-
-  for (let index = 0; index < value.length; index += 1) {
-    const char = value[index];
-    const next = value[index + 1];
-
-    if (char === '"' && quoted && next === '"') {
-      field += '"';
-      index += 1;
-      continue;
-    }
-
-    if (char === '"') {
-      quoted = !quoted;
-      continue;
-    }
-
-    if (char === "," && !quoted) {
-      row.push(field);
-      field = "";
-      continue;
-    }
-
-    if ((char === "\n" || char === "\r") && !quoted) {
-      if (char === "\r" && next === "\n") {
-        index += 1;
-      }
-      row.push(field);
-      rows.push(row);
-      row = [];
-      field = "";
-      continue;
-    }
-
-    field += char;
-  }
-
-  row.push(field);
-  rows.push(row);
-  return rows.filter((items) => items.some((item) => item.trim().length > 0));
 }
 
 async function writeAudit(

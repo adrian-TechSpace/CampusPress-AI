@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BadgeCheck,
   Banknote,
+  FileDown,
   FileWarning,
   Loader2,
   RefreshCcw,
@@ -16,6 +17,13 @@ import { AuthenticatedShell } from "@/components/reader/authenticated-rail";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  buildRosterSampleCsv,
+  previewRosterCsv,
+  rosterDataKinds,
+  type RosterCsvRow,
+  type RosterDataKind,
+} from "@/lib/roster-csv";
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
 import type { AdminOverview, AdminUserRow } from "@/lib/admin";
 
@@ -25,10 +33,7 @@ type OverviewResponse = {
   overview?: AdminOverview;
 };
 
-const sampleCsv = [
-  "department_code,matric_or_staff_id,full_name,role",
-  "MAS,MAS/2024/101,Phase Eight Journalist,journalist",
-].join("\n");
+const initialRosterKind: RosterDataKind = "student";
 
 export function AdminDashboardClient() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
@@ -38,7 +43,18 @@ export function AdminDashboardClient() {
   const [forbidden, setForbidden] = useState(false);
   const [acting, setActing] = useState(false);
   const [reason, setReason] = useState("Account paused by CampusPress administration.");
-  const [rosterCsv, setRosterCsv] = useState(sampleCsv);
+  const [rosterKind, setRosterKind] = useState<RosterDataKind>(initialRosterKind);
+  const [rosterCsv, setRosterCsv] = useState(() => buildRosterSampleCsv(initialRosterKind));
+  const rosterPreview = useMemo(() => {
+    try {
+      return { error: "", rows: previewRosterCsv(rosterCsv, rosterKind).rows };
+    } catch (error) {
+      return {
+        error: error instanceof Error ? error.message : "CampusPress could not preview that roster CSV.",
+        rows: [] as RosterCsvRow[],
+      };
+    }
+  }, [rosterCsv, rosterKind]);
 
   const accessToken = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
@@ -142,7 +158,12 @@ export function AdminDashboardClient() {
   }
 
   async function uploadRoster() {
-    const result = await adminPost("/api/admin/roster/upload", rosterCsv, "text/csv");
+    if (rosterPreview.error || rosterPreview.rows.length === 0) {
+      setMessage(rosterPreview.error || "Add at least one roster row before confirming upload.");
+      return;
+    }
+
+    const result = await adminPost(`/api/admin/roster/upload?type=${encodeURIComponent(rosterKind)}`, rosterCsv, "text/csv");
     if (result) {
       await loadOverview(result.message);
     }
@@ -163,6 +184,23 @@ export function AdminDashboardClient() {
     }
 
     setRosterCsv(await file.text());
+  }
+
+  function changeRosterKind(nextKind: RosterDataKind) {
+    setRosterKind(nextKind);
+    setRosterCsv(buildRosterSampleCsv(nextKind));
+  }
+
+  function downloadRosterSample() {
+    const blob = new Blob([buildRosterSampleCsv(rosterKind)], { type: "text/csv;charset=utf-8" });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `campuspress-${rosterKind}-roster-sample.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
   }
 
   return (
@@ -211,9 +249,14 @@ export function AdminDashboardClient() {
                 <RosterPanel
                   acting={acting}
                   onFile={handleRosterFile}
+                  onDownloadSample={downloadRosterSample}
+                  onKindChange={changeRosterKind}
                   onUpload={uploadRoster}
                   overview={overview}
+                  previewError={rosterPreview.error}
+                  previewRows={rosterPreview.rows}
                   rosterCsv={rosterCsv}
+                  rosterKind={rosterKind}
                   setRosterCsv={setRosterCsv}
                 />
                 <UsagePanel overview={overview} />
@@ -373,18 +416,30 @@ function ModerationPanel({
 function RosterPanel({
   acting,
   onFile,
+  onDownloadSample,
+  onKindChange,
   onUpload,
   overview,
+  previewError,
+  previewRows,
   rosterCsv,
+  rosterKind,
   setRosterCsv,
 }: {
   acting: boolean;
   onFile: (file: File | null) => void;
+  onDownloadSample: () => void;
+  onKindChange: (kind: RosterDataKind) => void;
   onUpload: () => void;
   overview: AdminOverview;
+  previewError: string;
+  previewRows: RosterCsvRow[];
   rosterCsv: string;
+  rosterKind: RosterDataKind;
   setRosterCsv: (value: string) => void;
 }) {
+  const hasPreview = previewRows.length > 0 && !previewError;
+
   return (
     <section className="grid gap-4 rounded-md border bg-card p-5">
       <div className="grid gap-2">
@@ -393,21 +448,114 @@ function RosterPanel({
           Upload department code, matric or staff ID, full name, and role. Matching profiles are verified retroactively.
         </p>
       </div>
-      <Input accept=".csv,text/csv" onChange={(event) => void onFile(event.target.files?.[0] ?? null)} type="file" />
+      <div className="grid gap-3" role="radiogroup" aria-label="Roster data type">
+        <p className="text-sm font-semibold">Roster type</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {rosterDataKinds.map((kind) => (
+            <button
+              aria-pressed={rosterKind === kind.id}
+              className={`grid gap-1 rounded-md border p-4 text-left text-sm transition-colors ${
+                rosterKind === kind.id ? "border-primary bg-primary/10" : "bg-background hover:bg-accent"
+              }`}
+              key={kind.id}
+              onClick={() => onKindChange(kind.id)}
+              type="button"
+            >
+              <span className="font-semibold">{kind.label}</span>
+              <span className="leading-5 text-muted-foreground">{kind.description}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <Button className="whitespace-nowrap" onClick={onDownloadSample} type="button" variant="outline">
+          <FileDown aria-hidden />
+          Download sample CSV
+        </Button>
+        <Input
+          accept=".csv,text/csv"
+          aria-label="Choose roster CSV file"
+          onChange={(event) => void onFile(event.target.files?.[0] ?? null)}
+          type="file"
+        />
+      </div>
       <textarea
+        aria-label="Roster CSV contents"
         className="min-h-48 rounded-md border bg-background p-3 text-sm leading-6 outline-none focus-visible:ring-2 focus-visible:ring-ring"
         onChange={(event) => setRosterCsv(event.target.value)}
         value={rosterCsv}
       />
-      <Button aria-label="Upload roster CSV" disabled={acting} onClick={onUpload} type="button">
+      <div className="grid gap-3">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <h3 className="text-sm font-semibold">Preview</h3>
+          <p className="text-xs text-muted-foreground">
+            {hasPreview ? `${previewRows.length} ${previewRows.length === 1 ? "row" : "rows"} parsed` : "No valid rows parsed yet"}
+          </p>
+        </div>
+        {previewError ? (
+          <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm leading-6 text-destructive" role="alert">
+            {previewError}
+          </p>
+        ) : hasPreview ? (
+          <>
+            <div className="grid rounded-md border sm:hidden">
+              {previewRows.slice(0, 6).map((row) => (
+                <div className="grid gap-3 border-b p-3 last:border-b-0" key={`${row.department_code}-${row.matric_or_staff_id}`}>
+                  <PreviewField label="Department" value={row.department_code} />
+                  <PreviewField label="Matric or staff ID" value={row.matric_or_staff_id} />
+                  <PreviewField label="Name" value={row.full_name} />
+                  <PreviewField label="Role" value={row.role} />
+                </div>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto rounded-md border sm:block">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-muted text-xs uppercase text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2 font-semibold">Department</th>
+                    <th className="px-3 py-2 font-semibold">Matric or staff ID</th>
+                    <th className="px-3 py-2 font-semibold">Name</th>
+                    <th className="px-3 py-2 font-semibold">Role</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewRows.slice(0, 6).map((row) => (
+                    <tr className="border-t" key={`${row.department_code}-${row.matric_or_staff_id}`}>
+                      <td className="whitespace-nowrap px-3 py-2">{row.department_code}</td>
+                      <td className="whitespace-nowrap px-3 py-2">{row.matric_or_staff_id}</td>
+                      <td className="px-3 py-2">{row.full_name}</td>
+                      <td className="whitespace-nowrap px-3 py-2">{row.role}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          <p className="rounded-md border bg-background p-3 text-sm leading-6 text-muted-foreground">
+            Choose a CSV file or paste rows to preview them before upload.
+          </p>
+        )}
+        {previewRows.length > 6 ? <p className="text-xs text-muted-foreground">Showing 6 of {previewRows.length} rows.</p> : null}
+      </div>
+      <Button aria-label="Confirm roster CSV upload" disabled={acting || !hasPreview} onClick={onUpload} type="button">
         <Upload aria-hidden />
-        Upload roster
+        Confirm upload
       </Button>
       <div className="grid gap-2 text-sm leading-6 text-muted-foreground">
         <p>Latest roster job: {overview.roster.latestJob?.status ?? "No roster job yet"}</p>
         <p>Recent rows: {overview.roster.rows.length}</p>
       </div>
     </section>
+  );
+}
+
+function PreviewField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid gap-1">
+      <span className="text-xs font-semibold uppercase text-muted-foreground">{label}</span>
+      <span className="break-words text-sm">{value}</span>
+    </div>
   );
 }
 
