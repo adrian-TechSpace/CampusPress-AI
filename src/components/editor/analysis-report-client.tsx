@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { AlertTriangle, CheckCircle2, CircleDashed } from "lucide-react";
 import { AuthenticatedShell } from "@/components/reader/authenticated-rail";
+import { statusTooltip, technicalTermTooltips } from "@/lib/editor-tooltips";
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
 import type { AnalysisReport } from "@/lib/analysis/types";
 
@@ -94,6 +95,13 @@ export function AnalysisReportPanel({ report }: { report: AnalysisReport }) {
 
   return (
     <>
+      <section className="grid gap-2 rounded-md border bg-card p-5">
+        <h2 className="text-xl font-semibold">How to use this report</h2>
+        <p className="max-w-4xl text-sm leading-6 text-muted-foreground">
+          This report summarizes automated checks for editors. Treat it as a decision aid, not a verdict, and weigh it against the article itself because model disagreement and known limitations are disclosed instead of hidden.
+        </p>
+      </section>
+
       <section className="grid gap-4 rounded-md border bg-card p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="grid gap-2">
@@ -103,9 +111,12 @@ export function AnalysisReportPanel({ report }: { report: AnalysisReport }) {
             </p>
           </div>
           <div className="grid gap-1 text-sm">
-            <span className="font-semibold">Status: {report.status}</span>
+            <span className="font-semibold">
+              <TooltipTerm description={statusTooltip(report.status)} label={`Status: ${report.status}`} />
+            </span>
             <span className="text-muted-foreground">
-              Confidence: {report.combinedConfidence === null ? "Not available" : `${Math.round(report.combinedConfidence * 100)}%`}
+              <TooltipTerm description={technicalTermTooltips.confidence} label="Confidence" />:{" "}
+              {report.combinedConfidence === null ? "Not available" : `${Math.round(report.combinedConfidence * 100)}%`}
             </span>
           </div>
         </div>
@@ -138,14 +149,28 @@ export function AnalysisReportPanel({ report }: { report: AnalysisReport }) {
 
             {result.disclosure ? (
               <div className="rounded-md border bg-background p-3 text-sm leading-6 text-muted-foreground">
-                <span className="font-semibold text-foreground">Known limitation: </span>
+                <span className="font-semibold text-foreground">
+                  <TooltipTerm description={technicalTermTooltips.knownLimitation} label="Known limitation" />:{" "}
+                </span>
                 {result.disclosure}
               </div>
             ) : null}
 
             <div className="grid gap-3 text-sm md:grid-cols-2">
-              <Metric label="Confidence" value={result.confidence === null ? "This check did not complete" : `${Math.round(result.confidence * 100)}%`} />
-              <Metric label="Score" value={result.score === null ? "Not available" : result.score.toString()} />
+              <Metric
+                label={<TooltipTerm description={technicalTermTooltips.confidence} label="Confidence" />}
+                value={
+                  result.confidence === null ? (
+                    <TooltipTerm description={technicalTermTooltips.didNotComplete} label="This check did not complete" />
+                  ) : (
+                    `${Math.round(result.confidence * 100)}%`
+                  )
+                }
+              />
+              <Metric
+                label={<TooltipTerm description={technicalTermTooltips.score} label="Score" />}
+                value={result.score === null ? "Not available" : result.score.toString()}
+              />
             </div>
 
             {result.errorMessage ? (
@@ -193,9 +218,12 @@ function getOpenAiUnavailableState(report: AnalysisReport) {
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const statusDescription = statusTooltip(status);
+  const description = status === "failed" ? technicalTermTooltips.didNotComplete : statusDescription;
+
   if (status === "completed") {
     return (
-      <span className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold text-primary">
+      <span className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold text-primary" title={description}>
         <CheckCircle2 aria-hidden className="size-4" />
         Completed
       </span>
@@ -204,7 +232,7 @@ function StatusBadge({ status }: { status: string }) {
 
   if (status === "failed") {
     return (
-      <span className="inline-flex items-center gap-2 rounded-md border border-destructive/30 px-3 py-2 text-sm font-semibold text-destructive">
+      <span className="inline-flex items-center gap-2 rounded-md border border-destructive/30 px-3 py-2 text-sm font-semibold text-destructive" title={description}>
         <AlertTriangle aria-hidden className="size-4" />
         Did not complete
       </span>
@@ -212,19 +240,27 @@ function StatusBadge({ status }: { status: string }) {
   }
 
   return (
-    <span className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold text-muted-foreground">
+    <span className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold text-muted-foreground" title={description}>
       <CircleDashed aria-hidden className="size-4" />
       {status}
     </span>
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function Metric({ label, value }: { label: ReactNode; value: ReactNode }) {
   return (
     <div className="rounded-md border bg-background p-3">
       <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">{label}</p>
       <p className="mt-1 text-sm font-semibold">{value}</p>
     </div>
+  );
+}
+
+function TooltipTerm({ description, label }: { description: string; label: string }) {
+  return (
+    <span className="cursor-help underline decoration-dotted underline-offset-4" title={description}>
+      {label}
+    </span>
   );
 }
 

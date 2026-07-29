@@ -366,6 +366,12 @@ function ModerationPanel({
   onModerateComment: (targetId: string, hidden: boolean) => void;
   overview: AdminOverview;
 }) {
+  const articleCopy = {
+    publish: "Publish: make this live for readers.",
+    hide: "Hide: remove from public view without deleting it.",
+    restore: "Restore: bring a hidden item back for review.",
+  };
+
   return (
     <section className="grid gap-5 rounded-md border bg-card p-5">
       <div className="grid gap-2">
@@ -380,10 +386,30 @@ function ModerationPanel({
               <p className="text-sm font-semibold">{article.title}</p>
               <p className="text-xs text-muted-foreground">{article.authorName} / {article.status}</p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button aria-label={`Publish ${article.title}`} disabled={acting} onClick={() => onModerateArticle(article.id, "publish")} size="sm" type="button">Publish</Button>
-              <Button aria-label={`Hide ${article.title}`} disabled={acting} onClick={() => onModerateArticle(article.id, "hide")} size="sm" type="button" variant="outline">Hide</Button>
-              <Button aria-label={`Restore ${article.title}`} disabled={acting} onClick={() => onModerateArticle(article.id, "restore")} size="sm" type="button" variant="outline">Restore</Button>
+            <div className="grid gap-2">
+              <ModerationActionButton
+                ariaLabel={`Publish ${article.title}`}
+                disabled={acting}
+                explanation={articleCopy.publish}
+                label="Publish"
+                onClick={() => onModerateArticle(article.id, "publish")}
+              />
+              <ModerationActionButton
+                ariaLabel={`Hide ${article.title}`}
+                disabled={acting}
+                explanation={articleCopy.hide}
+                label="Hide"
+                onClick={() => onModerateArticle(article.id, "hide")}
+                variant="outline"
+              />
+              <ModerationActionButton
+                ariaLabel={`Restore ${article.title}`}
+                disabled={acting}
+                explanation={articleCopy.restore}
+                label="Restore"
+                onClick={() => onModerateArticle(article.id, "restore")}
+                variant="outline"
+              />
             </div>
           </div>
         ))}
@@ -396,20 +422,47 @@ function ModerationPanel({
               <p className="text-sm leading-6">{clip(comment.body, 120)}</p>
               <p className="text-xs text-muted-foreground">{comment.isHidden ? "Hidden" : "Visible"}</p>
             </div>
-            <Button
-              aria-label={`${comment.isHidden ? "Restore" : "Hide"} comment ${comment.id}`}
+            <ModerationActionButton
+              ariaLabel={`${comment.isHidden ? "Restore" : "Hide"} comment ${comment.id}`}
               disabled={acting}
+              explanation={
+                comment.isHidden
+                  ? "Restore: make this hidden comment visible again."
+                  : "Hide: remove this comment from public view without deleting it."
+              }
+              label={comment.isHidden ? "Restore" : "Hide"}
               onClick={() => onModerateComment(comment.id, !comment.isHidden)}
-              size="sm"
-              type="button"
               variant="outline"
-            >
-              {comment.isHidden ? "Restore" : "Hide"}
-            </Button>
+            />
           </div>
         ))}
       </div>
     </section>
+  );
+}
+
+function ModerationActionButton({
+  ariaLabel,
+  disabled,
+  explanation,
+  label,
+  onClick,
+  variant = "default",
+}: {
+  ariaLabel: string;
+  disabled: boolean;
+  explanation: string;
+  label: string;
+  onClick: () => void;
+  variant?: "default" | "outline";
+}) {
+  return (
+    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+      <Button aria-label={ariaLabel} disabled={disabled} onClick={onClick} size="sm" type="button" variant={variant}>
+        {label}
+      </Button>
+      <p className="text-xs leading-5 text-muted-foreground">{explanation}</p>
+    </div>
   );
 }
 
@@ -564,7 +617,9 @@ function UsagePanel({ overview }: { overview: AdminOverview }) {
     <section className="grid gap-4 rounded-md border bg-card p-5">
       <div className="grid gap-2">
         <h2 className="text-xl font-semibold">AI usage</h2>
-        <p className="text-sm leading-6 text-muted-foreground">Current provider cost and usage based on `ai_usage_log`.</p>
+        <p className="text-sm leading-6 text-muted-foreground">
+          This section shows real dollar and cent costs spent on AI providers, so admins can monitor platform AI spend.
+        </p>
       </div>
       <div className="grid gap-3">
         {overview.aiUsage.byProvider.length > 0 ? overview.aiUsage.byProvider.map((row) => (
@@ -603,7 +658,7 @@ function FlutterwavePanel({
         <div className="grid gap-2">
           <h2 className="text-xl font-semibold">Flutterwave monetisation scaffolding</h2>
           <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-            Test-mode Standard Checkout payments write to `payments` and activate `subscriptions` after server-side verification.
+            This is a developer/admin testing tool for confirming the payment integration works. It is not a live revenue dashboard yet.
           </p>
         </div>
         <Button aria-label="Run Flutterwave test transaction" disabled={acting} onClick={onRunTest} type="button">

@@ -15,6 +15,7 @@ import {
 import { AnalysisReportPanel } from "@/components/editor/analysis-report-client";
 import { AuthenticatedShell } from "@/components/reader/authenticated-rail";
 import { Button } from "@/components/ui/button";
+import { technicalTermTooltips } from "@/lib/editor-tooltips";
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
 import type { AnalysisReport } from "@/lib/analysis/types";
 import type { ReviewAnalytics, ReviewDecision, ReviewQueueItem, ReviewStatus } from "@/lib/editor-review";
@@ -315,7 +316,12 @@ export function EditorReviewQueueClient() {
                       </div>
                       <div className="grid gap-1 text-sm text-muted-foreground">
                         <span>Submitted: {formatDate(selected.submittedAt)}</span>
-                        <span>Risk score: {selected.analysis.riskScore === null ? "Not available" : selected.analysis.riskScore}</span>
+                        <span>
+                          <span className="cursor-help underline decoration-dotted underline-offset-4" title={technicalTermTooltips.riskScore}>
+                            Risk score
+                          </span>
+                          : {selected.analysis.riskScore === null ? "Not available" : selected.analysis.riskScore}
+                        </span>
                       </div>
                     </div>
                     <p className="text-base leading-8 text-muted-foreground">
