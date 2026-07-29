@@ -32,25 +32,29 @@ export function FeedClient({ initialArticles }: FeedClientProps) {
     let active = true;
 
     async function loadReaderInterests() {
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData.user?.id;
-      if (!userId) {
+      try {
+        const { data: userData } = await supabase.auth.getUser();
+        const userId = userData.user?.id;
+        if (!userId) {
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("preferences")
+          .eq("id", userId)
+          .maybeSingle();
+
+        if (!active || error) {
+          return;
+        }
+
+        const savedInterests = readProfileInterests(data?.preferences);
+        if (savedInterests.length > 0) {
+          setSelectedInterests(savedInterests);
+        }
+      } catch {
         return;
-      }
-
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("preferences")
-        .eq("id", userId)
-        .maybeSingle();
-
-      if (!active || error) {
-        return;
-      }
-
-      const savedInterests = readProfileInterests(data?.preferences);
-      if (savedInterests.length > 0) {
-        setSelectedInterests(savedInterests);
       }
     }
 

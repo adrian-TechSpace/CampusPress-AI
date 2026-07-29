@@ -49,8 +49,14 @@ export function ReaderHomeClient({ initialArticles = publishedArticles }: Reader
     let active = true;
 
     async function load() {
-      const { data: userData } = await supabase.auth.getUser();
-      const id = userData.user?.id ?? "";
+      let id = "";
+      try {
+        const { data: userData } = await supabase.auth.getUser();
+        id = userData.user?.id ?? "";
+      } catch {
+        return;
+      }
+
       if (!active) {
         return;
       }
