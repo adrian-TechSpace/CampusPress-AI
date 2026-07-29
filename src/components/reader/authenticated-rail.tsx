@@ -171,6 +171,9 @@ function roleHomeHref(role: string) {
   if (role === "reader") {
     return "/dashboard/reader";
   }
+  if (role === "editor") {
+    return "/dashboard/editor";
+  }
   return `/dashboard/${role}`;
 }
 

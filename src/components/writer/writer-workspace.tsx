@@ -5,14 +5,20 @@ import Link from "next/link";
 import {
   AlignLeft,
   AlertTriangle,
+  ArchiveRestore,
+  BarChart3,
   Bold,
+  Bookmark,
   CheckCircle2,
   FileText,
+  Heart,
   ImageIcon,
   Italic,
   List,
   ListOrdered,
+  MessageCircle,
   Quote,
+  RotateCcw,
   Send,
   WifiOff,
 } from "lucide-react";
@@ -45,6 +51,7 @@ type DraftArticle = {
   slug: string;
   updated_at: string;
   submitted_at: string | null;
+  published_at: string | null;
 };
 
 type SaveState = {
@@ -61,13 +68,43 @@ type AnalysisState = {
 };
 
 const queueKey = "campuspress_writer_offline_queue";
+type DraftView = "active" | "archived" | "published";
 type FormatKind = "heading" | "quote" | "bold" | "italic" | "unorderedList" | "orderedList";
+type PublishedComment = {
+  id: string;
+  body: string;
+  created_at: string;
+};
+type PublishedEngagementState = {
+  loading: boolean;
+  articleSlug: string | null;
+  likeCount: number;
+  bookmarkCount: number;
+  comments: PublishedComment[];
+  message: string;
+};
+type PublishedEngagementPayload = {
+  ok: boolean;
+  message?: string;
+  counts?: {
+    bookmarks: number;
+    likes: number;
+  };
+  comments?: PublishedComment[];
+};
 
 export function WriterWorkspace() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [drafts, setDrafts] = useState<DraftArticle[]>([]);
+  const [archivedDrafts, setArchivedDrafts] = useState<DraftArticle[]>([]);
+  const [publishedArticles, setPublishedArticles] = useState<DraftArticle[]>([]);
+  const [draftView, setDraftView] = useState<DraftView>("active");
+  const [selectedPublishedArticle, setSelectedPublishedArticle] = useState<DraftArticle | null>(null);
+  const [publishedEngagement, setPublishedEngagement] = useState<PublishedEngagementState>(() =>
+    createEmptyPublishedEngagement(),
+  );
   const [articleId, setArticleId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [excerpt, setExcerpt] = useState("");
@@ -140,21 +177,92 @@ export function WriterWorkspace() {
 
   const loadDrafts = useCallback(
     async (userId: string) => {
-      const { data, error } = await supabase
-        .from("articles")
-        .select(
-          "id, title, excerpt, plain_text, content, featured_image_url, featured_image_alt, status, slug, updated_at, submitted_at",
-        )
-        .eq("author_id", userId)
-        .not("status", "in", "(published,archived)")
-        .order("updated_at", { ascending: false });
+      const articleSelect =
+        "id, title, excerpt, plain_text, content, featured_image_url, featured_image_alt, status, slug, updated_at, submitted_at, published_at";
+      const [activeResult, archivedResult, publishedResult] = await Promise.all([
+        supabase
+          .from("articles")
+          .select(articleSelect)
+          .eq("author_id", userId)
+          .not("status", "in", "(published,archived)")
+          .order("updated_at", { ascending: false }),
+        supabase
+          .from("articles")
+          .select(articleSelect)
+          .eq("author_id", userId)
+          .eq("status", "archived")
+          .order("updated_at", { ascending: false }),
+        supabase
+          .from("articles")
+          .select(articleSelect)
+          .eq("author_id", userId)
+          .eq("status", "published")
+          .order("published_at", { ascending: false, nullsFirst: false }),
+      ]);
 
-      if (!error) {
-        setDrafts((data ?? []) as DraftArticle[]);
+      if (!activeResult.error) {
+        setDrafts((activeResult.data ?? []) as DraftArticle[]);
+      }
+      if (!archivedResult.error) {
+        setArchivedDrafts((archivedResult.data ?? []) as DraftArticle[]);
+      }
+      if (!publishedResult.error) {
+        const nextPublishedArticles = (publishedResult.data ?? []) as DraftArticle[];
+        setPublishedArticles(nextPublishedArticles);
+        setSelectedPublishedArticle((current) => {
+          if (!current) {
+            return nextPublishedArticles[0] ?? null;
+          }
+
+          return nextPublishedArticles.find((article) => article.id === current.id) ?? nextPublishedArticles[0] ?? null;
+        });
       }
     },
     [supabase],
   );
+
+  const loadPublishedEngagement = useCallback(async (article: DraftArticle | null) => {
+    if (!article) {
+      setPublishedEngagement(createEmptyPublishedEngagement());
+      return;
+    }
+
+    setPublishedEngagement((current) => ({
+      ...current,
+      loading: true,
+      articleSlug: article.slug,
+      message: "Loading live article engagement...",
+    }));
+
+    const response = await fetch(`/api/articles/${encodeURIComponent(article.slug)}/engagement`, {
+      cache: "no-store",
+    });
+    const payload = (await response.json().catch(() => ({
+      ok: false,
+      message: "CampusPress could not load engagement for this article.",
+    }))) as PublishedEngagementPayload;
+
+    if (!payload.ok) {
+      setPublishedEngagement({
+        loading: false,
+        articleSlug: article.slug,
+        likeCount: 0,
+        bookmarkCount: 0,
+        comments: [],
+        message: payload.message ?? "CampusPress could not load engagement for this article.",
+      });
+      return;
+    }
+
+    setPublishedEngagement({
+      loading: false,
+      articleSlug: article.slug,
+      likeCount: payload.counts?.likes ?? 0,
+      bookmarkCount: payload.counts?.bookmarks ?? 0,
+      comments: payload.comments ?? [],
+      message: "Live engagement loaded.",
+    });
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -191,6 +299,18 @@ export function WriterWorkspace() {
       active = false;
     };
   }, [loadDrafts, supabase]);
+
+  useEffect(() => {
+    if (draftView !== "published") {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void loadPublishedEngagement(selectedPublishedArticle);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [draftView, loadPublishedEngagement, selectedPublishedArticle]);
 
   useEffect(() => {
     const handleOnline = () => {
@@ -623,6 +743,34 @@ export function WriterWorkspace() {
     setSaveState({ tone: "success", message: "Draft archived." });
   }
 
+  async function restoreArchivedDraft(article: DraftArticle) {
+    if (!profile || article.status !== "archived") {
+      return;
+    }
+
+    setSaving(true);
+    setSaveState({ tone: "neutral", message: `Restoring ${article.title}...` });
+    const { data, error } = await supabase
+      .from("articles")
+      .update({ status: "draft", submitted_at: null, reviewed_at: null })
+      .eq("id", article.id)
+      .eq("status", "archived")
+      .select("id");
+    setSaving(false);
+
+    if (error || !data?.length) {
+      setSaveState({
+        tone: "error",
+        message: "CampusPress could not restore that archived draft.",
+      });
+      return;
+    }
+
+    await loadDrafts(profile.id);
+    setDraftView("active");
+    setSaveState({ tone: "success", message: "Archived draft restored." });
+  }
+
   function handleDraftPointerDown(articleIdValue: string, clientX: number) {
     dragDraft.current = { id: articleIdValue, x: clientX };
   }
@@ -933,6 +1081,7 @@ export function WriterWorkspace() {
                 setCoverImageUrl("");
                 setCoverImageAlt("");
                 setStatus("draft");
+                setDraftView("active");
                 setSaveState({
                   tone: "neutral",
                   message: "New draft ready.",
@@ -949,65 +1098,164 @@ export function WriterWorkspace() {
             </Button>
           </div>
 
-          <div className="mt-8 grid gap-3">
-            <p className="text-sm font-semibold">Your active drafts</p>
-            {drafts.length === 0 ? (
-              <p className="text-sm leading-6 text-muted-foreground">
-                No drafts yet. Start with a clear headline and one reported fact.
-              </p>
-            ) : (
-              drafts.map((article) => (
-                <div
-                  className="relative overflow-hidden rounded-md border bg-muted text-sm shadow-sm"
-                  data-testid={`draft-row-${article.id}`}
-                  key={article.id}
+          <div className="mt-8 grid gap-4">
+            <div className="grid grid-cols-3 gap-2" role="tablist" aria-label="Writer article views">
+              {[
+                { label: "Active", value: "active" },
+                { label: "Archived", value: "archived" },
+                { label: "Published", value: "published" },
+              ].map((item) => (
+                <button
+                  aria-selected={draftView === item.value}
+                  className={
+                    draftView === item.value
+                      ? "rounded-md border bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground"
+                      : "rounded-md border bg-background px-3 py-2 text-sm font-semibold text-muted-foreground hover:text-foreground"
+                  }
+                  key={item.value}
+                  onClick={() => setDraftView(item.value as DraftView)}
+                  role="tab"
+                  type="button"
                 >
-                  <div className="absolute inset-y-0 left-0 flex items-center px-3">
+                  {item.label}
+                </button>
+              ))}
+            </div>
+
+            {draftView === "active" ? (
+              <div className="grid gap-3">
+                <p className="text-sm font-semibold">Your active drafts</p>
+                {drafts.length === 0 ? (
+                  <p className="text-sm leading-6 text-muted-foreground">
+                    No drafts yet. Start with a clear headline and one reported fact.
+                  </p>
+                ) : (
+                  drafts.map((article) => (
+                    <div
+                      className="relative overflow-hidden rounded-md border bg-muted text-sm shadow-sm"
+                      data-testid={`draft-row-${article.id}`}
+                      key={article.id}
+                    >
+                      <div className="absolute inset-y-0 left-0 flex items-center px-3">
+                        <button
+                          className="rounded-md bg-card px-3 py-2 text-sm font-semibold"
+                          onClick={() => archiveDraft(article)}
+                          type="button"
+                        >
+                          Archive
+                        </button>
+                      </div>
+                      <div className="absolute inset-y-0 right-0 flex items-center px-3">
+                        <button
+                          className="rounded-md bg-card px-3 py-2 text-sm font-semibold text-destructive"
+                          onClick={() => setDeleteCandidate(article)}
+                          type="button"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                      <div
+                        className="grid gap-2 bg-card p-3 transition-transform"
+                        onPointerDown={(event) => handleDraftPointerDown(article.id, event.clientX)}
+                        onPointerUp={(event) => handleDraftPointerUp(article, event.clientX)}
+                        style={{
+                          transform:
+                            revealedDraft?.id === article.id
+                              ? revealedDraft.action === "archive"
+                                ? "translateX(5.5rem)"
+                                : "translateX(-5.5rem)"
+                              : "translateX(0)",
+                        }}
+                      >
+                        <button className="grid gap-2 text-left" onClick={() => loadArticle(article)} type="button">
+                          <span className="font-semibold">{article.title}</span>
+                          <span className="text-muted-foreground">{statusLabel(article.status)}</span>
+                        </button>
+                        <p className="text-xs text-muted-foreground md:hidden">
+                          Swipe right to archive or left to delete.
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : null}
+
+            {draftView === "archived" ? (
+              <div className="grid gap-3">
+                <p className="text-sm font-semibold">Your archived drafts</p>
+                {archivedDrafts.length === 0 ? (
+                  <p className="text-sm leading-6 text-muted-foreground">
+                    No archived drafts yet.
+                  </p>
+                ) : (
+                  archivedDrafts.map((article) => (
+                    <div className="grid gap-3 rounded-md border bg-card p-3 text-sm" key={article.id}>
+                      <button className="grid gap-2 text-left" onClick={() => loadArticle(article)} type="button">
+                        <span className="font-semibold">{article.title}</span>
+                        <span className="text-muted-foreground">
+                          {statusLabel(article.status)}. Updated {formatDateTime(article.updated_at)}
+                        </span>
+                      </button>
+                      <Button
+                        disabled={saving}
+                        onClick={() => restoreArchivedDraft(article)}
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                      >
+                        <ArchiveRestore aria-hidden className="size-4" />
+                        Restore draft
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : null}
+
+            {draftView === "published" ? (
+              <div className="grid gap-3">
+                <p className="text-sm font-semibold">Your published articles</p>
+                {publishedArticles.length === 0 ? (
+                  <p className="text-sm leading-6 text-muted-foreground">
+                    No published articles yet.
+                  </p>
+                ) : (
+                  publishedArticles.map((article) => (
                     <button
-                      className="rounded-md bg-card px-3 py-2 text-sm font-semibold"
-                      onClick={() => archiveDraft(article)}
+                      className={
+                        selectedPublishedArticle?.id === article.id
+                          ? "grid gap-2 rounded-md border border-primary bg-card p-3 text-left text-sm"
+                          : "grid gap-2 rounded-md border bg-card p-3 text-left text-sm hover:border-primary"
+                      }
+                      key={article.id}
+                      onClick={() => {
+                        setSelectedPublishedArticle(article);
+                        setDraftView("published");
+                      }}
                       type="button"
                     >
-                      Archive
-                    </button>
-                  </div>
-                  <div className="absolute inset-y-0 right-0 flex items-center px-3">
-                    <button
-                      className="rounded-md bg-card px-3 py-2 text-sm font-semibold text-destructive"
-                      onClick={() => setDeleteCandidate(article)}
-                      type="button"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                  <div
-                    className="grid gap-2 bg-card p-3 transition-transform"
-                    onPointerDown={(event) => handleDraftPointerDown(article.id, event.clientX)}
-                    onPointerUp={(event) => handleDraftPointerUp(article, event.clientX)}
-                    style={{
-                      transform:
-                        revealedDraft?.id === article.id
-                          ? revealedDraft.action === "archive"
-                            ? "translateX(5.5rem)"
-                            : "translateX(-5.5rem)"
-                          : "translateX(0)",
-                    }}
-                  >
-                    <button className="grid gap-2 text-left" onClick={() => loadArticle(article)} type="button">
                       <span className="font-semibold">{article.title}</span>
-                      <span className="text-muted-foreground">{statusLabel(article.status)}</span>
+                      <span className="text-muted-foreground">
+                        Published {formatDateTime(article.published_at ?? article.updated_at)}
+                      </span>
                     </button>
-                    <p className="text-xs text-muted-foreground md:hidden">
-                      Swipe right to archive or left to delete.
-                    </p>
-                  </div>
-                </div>
-              ))
-            )}
+                  ))
+                )}
+              </div>
+            ) : null}
           </div>
         </aside>
 
         <div className="grid gap-6">
+          {draftView === "published" ? (
+            <PublishedArticleDetail
+              article={selectedPublishedArticle}
+              engagement={publishedEngagement}
+              onRefresh={() => loadPublishedEngagement(selectedPublishedArticle)}
+            />
+          ) : null}
+
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-md border px-3 py-2 text-sm font-semibold">
@@ -1538,6 +1786,125 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
+function PublishedArticleDetail({
+  article,
+  engagement,
+  onRefresh,
+}: {
+  article: DraftArticle | null;
+  engagement: PublishedEngagementState;
+  onRefresh: () => void | Promise<void>;
+}) {
+  if (!article) {
+    return (
+      <section className="grid gap-3 rounded-md border bg-card p-5">
+        <div className="flex items-center gap-3">
+          <BarChart3 aria-hidden className="size-5 text-primary" />
+          <h2 className="text-xl font-semibold">Published article detail</h2>
+        </div>
+        <p className="text-sm leading-6 text-muted-foreground">
+          Published stories will appear here with their comments, likes, and saves.
+        </p>
+      </section>
+    );
+  }
+
+  const articleHtml = sanitizeEditorHtml(article.content?.html ?? "") || plainTextToHtml(article.plain_text);
+
+  return (
+    <section className="grid gap-5 rounded-md border bg-card p-5" data-testid="published-article-detail">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="grid gap-2">
+          <div className="flex items-center gap-3">
+            <BarChart3 aria-hidden className="size-5 text-primary" />
+            <p className="text-sm font-semibold text-primary">Published article detail</p>
+          </div>
+          <h2 className="font-serif text-3xl font-semibold">{article.title}</h2>
+          <p className="text-sm leading-6 text-muted-foreground">
+            Published {formatDateTime(article.published_at ?? article.updated_at)}
+          </p>
+        </div>
+        <Button disabled={engagement.loading} onClick={() => void onRefresh()} type="button" variant="outline">
+          <RotateCcw aria-hidden className="size-4" />
+          Refresh engagement
+        </Button>
+      </div>
+
+      {article.excerpt ? (
+        <p className="text-base leading-8 text-muted-foreground">{article.excerpt}</p>
+      ) : null}
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <EngagementStat
+          icon={<Heart aria-hidden className="size-4" />}
+          label="Likes"
+          value={formatCount(engagement.likeCount)}
+        />
+        <EngagementStat
+          icon={<Bookmark aria-hidden className="size-4" />}
+          label="Saves"
+          value={formatCount(engagement.bookmarkCount)}
+        />
+        <EngagementStat
+          icon={<MessageCircle aria-hidden className="size-4" />}
+          label="Comments"
+          value={formatCount(engagement.comments.length)}
+        />
+      </div>
+      <p className="text-sm font-semibold text-primary" role="status">
+        {engagement.message}
+      </p>
+
+      {article.featured_image_url ? (
+        <figure>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            alt={article.featured_image_alt || "Article cover image"}
+            className="aspect-video w-full rounded-md object-cover"
+            src={article.featured_image_url}
+          />
+        </figure>
+      ) : null}
+
+      <div
+        className="reader-rich-body border-t pt-5 text-lg leading-8"
+        dangerouslySetInnerHTML={{ __html: articleHtml }}
+      />
+
+      <section className="grid gap-3 border-t pt-5">
+        <div className="flex items-center gap-3">
+          <MessageCircle aria-hidden className="size-5 text-primary" />
+          <h3 className="text-lg font-semibold">Comments on this article</h3>
+        </div>
+        {engagement.comments.length === 0 ? (
+          <p className="rounded-md border bg-background px-4 py-3 text-sm text-muted-foreground">
+            No visible comments yet.
+          </p>
+        ) : (
+          engagement.comments.map((comment) => (
+            <article className="rounded-md border bg-background px-4 py-3 text-sm leading-6" key={comment.id}>
+              <p>{comment.body}</p>
+              <p className="mt-2 text-xs text-muted-foreground">{formatDateTime(comment.created_at)}</p>
+            </article>
+          ))
+        )}
+      </section>
+    </section>
+  );
+}
+
+function EngagementStat({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-md border bg-background px-4 py-3 text-sm">
+      <span className="flex items-center gap-2 text-muted-foreground">
+        {icon}
+        {label}
+      </span>
+      <span className="font-semibold tabular-nums">{value}</span>
+    </div>
+  );
+}
+
 function WriterShell({
   children,
   message,
@@ -1574,9 +1941,34 @@ function statusLabel(value: string) {
     revision_requested: "Revision requested",
     approved: "Approved",
     rejected: "Rejected",
+    published: "Published",
+    archived: "Archived",
   };
 
   return labels[value] ?? value;
+}
+
+function createEmptyPublishedEngagement(): PublishedEngagementState {
+  return {
+    loading: false,
+    articleSlug: null,
+    likeCount: 0,
+    bookmarkCount: 0,
+    comments: [],
+    message: "Choose a published article to see live engagement.",
+  };
+}
+
+function formatCount(value: number) {
+  return new Intl.NumberFormat("en", { notation: "compact" }).format(value);
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(value));
 }
 
 function hasMeaningfulDraft(title: string, plainText: string, html: string) {

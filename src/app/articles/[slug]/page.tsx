@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ArticleActions } from "@/components/reader/article-actions";
@@ -68,7 +69,17 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
             ) : null}
             <div className="flex flex-col gap-2 border-y py-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
               <p>
-                By <span className="font-semibold text-foreground">{dbArticle.authorName}</span>
+                By{" "}
+                {dbArticle.authorUsername ? (
+                  <Link
+                    className="font-semibold text-foreground underline-offset-4 hover:underline"
+                    href={`/portfolio/${dbArticle.authorUsername}`}
+                  >
+                    {dbArticle.authorName}
+                  </Link>
+                ) : (
+                  <span className="font-semibold text-foreground">{dbArticle.authorName}</span>
+                )}
               </p>
               <p>{dbArticle.publishedAt}</p>
             </div>
@@ -89,6 +100,8 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
             className="reader-rich-body text-lg leading-8"
             dangerouslySetInnerHTML={{ __html: dbArticle.html }}
           />
+
+          <ArticleActions articleSlug={slug} />
         </article>
       </ReaderChrome>
     );
@@ -157,7 +170,7 @@ async function getPublishedArticle(slug: string) {
   const supabase = createAnonSupabaseClient();
   const { data, error } = await supabase
     .from("articles")
-    .select("title, excerpt, plain_text, content, featured_image_url, featured_image_alt, published_at, profiles!articles_author_id_fkey(full_name)")
+    .select("title, excerpt, plain_text, content, featured_image_url, featured_image_alt, published_at, profiles!articles_author_id_fkey(full_name, username)")
     .eq("slug", slug)
     .eq("status", "published")
     .maybeSingle();
@@ -176,6 +189,7 @@ async function getPublishedArticle(slug: string) {
     featuredImageUrl: data.featured_image_url as string | null,
     featuredImageAlt: data.featured_image_alt as string | null,
     authorName: profile?.full_name ?? "CampusPress writer",
+    authorUsername: profile?.username ?? null,
     publishedAt: data.published_at
       ? new Intl.DateTimeFormat("en", { dateStyle: "long" }).format(new Date(data.published_at as string))
       : "Published",

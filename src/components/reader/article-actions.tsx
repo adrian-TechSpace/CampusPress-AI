@@ -21,11 +21,27 @@ type CommentRow = {
   created_at: string;
 };
 
+type EngagementPayload = {
+  ok: boolean;
+  message?: string;
+  article?: {
+    id: string;
+    authorId: string;
+  };
+  counts?: {
+    bookmarks: number;
+    likes: number;
+  };
+  comments?: CommentRow[];
+};
+
 export function ArticleActions({ articleSlug }: ArticleActionsProps) {
   const [userId, setUserId] = useState<string | null>(null);
   const [article, setArticle] = useState<DbArticle | null>(null);
   const [bookmarked, setBookmarked] = useState(false);
   const [liked, setLiked] = useState(false);
+  const [bookmarkCount, setBookmarkCount] = useState(0);
+  const [likeCount, setLikeCount] = useState(0);
   const [following, setFollowing] = useState(false);
   const [comments, setComments] = useState<CommentRow[]>([]);
   const [draft, setDraft] = useState("");
@@ -41,37 +57,34 @@ export function ArticleActions({ articleSlug }: ArticleActionsProps) {
       const supabase = createBrowserSupabaseClient();
       const { data: sessionData } = await supabase.auth.getSession();
       const currentUserId = sessionData.session?.user.id ?? null;
-      const { data: articleData } = await supabase
-        .from("articles")
-        .select("id, author_id")
-        .eq("slug", articleSlug)
-        .eq("status", "published")
-        .maybeSingle();
+      const engagementResponse = await fetch(`/api/articles/${encodeURIComponent(articleSlug)}/engagement`, {
+        cache: "no-store",
+      });
+      const engagement = (await engagementResponse.json().catch(() => ({
+        ok: false,
+        message: "CampusPress could not load reader tools for this article.",
+      }))) as EngagementPayload;
 
       if (!active) {
         return;
       }
 
       setUserId(currentUserId);
-      setArticle(articleData ?? null);
+      setBookmarkCount(engagement.counts?.bookmarks ?? 0);
+      setLikeCount(engagement.counts?.likes ?? 0);
+      setComments(engagement.comments ?? []);
 
-      if (!articleData) {
-        setMessage("Reader actions are not ready for this article yet.");
+      if (!engagement.ok || !engagement.article) {
+        setArticle(null);
+        setMessage(engagement.message ?? "Reader actions are not ready for this article yet.");
         return;
       }
 
-      const { data: commentRows } = await supabase
-        .from("comments")
-        .select("id, body, created_at")
-        .eq("article_id", articleData.id)
-        .eq("is_hidden", false)
-        .order("created_at", { ascending: true });
-
-      if (!active) {
-        return;
-      }
-
-      setComments((commentRows ?? []) as CommentRow[]);
+      const articleData = {
+        id: engagement.article.id,
+        author_id: engagement.article.authorId,
+      };
+      setArticle(articleData);
 
       if (!currentUserId) {
         setMessage("Sign in to save, follow, like, or comment on this story.");
@@ -180,6 +193,7 @@ export function ArticleActions({ articleSlug }: ArticleActionsProps) {
     }
 
     setBookmarked(!bookmarked);
+    setBookmarkCount((current) => Math.max(0, current + (bookmarked ? -1 : 1)));
     setMessage(bookmarked ? "Bookmark removed." : "Story saved to bookmarks.");
   }
 
@@ -215,6 +229,7 @@ export function ArticleActions({ articleSlug }: ArticleActionsProps) {
     }
 
     setLiked(!liked);
+    setLikeCount((current) => Math.max(0, current + (liked ? -1 : 1)));
     setMessage(liked ? "Like removed." : "Story liked.");
   }
 
@@ -308,6 +323,7 @@ export function ArticleActions({ articleSlug }: ArticleActionsProps) {
         </div>
         <div className="flex flex-wrap gap-3">
           <Button
+            aria-label={bookmarked ? `Saved by ${bookmarkCount} ${readerLabel(bookmarkCount)}` : `Save this story. Saved by ${bookmarkCount} ${readerLabel(bookmarkCount)}`}
             aria-pressed={bookmarked}
             disabled={pending}
             onClick={toggleBookmark}
@@ -315,9 +331,11 @@ export function ArticleActions({ articleSlug }: ArticleActionsProps) {
             variant={bookmarked ? "default" : "outline"}
           >
             <Bookmark />
-            {bookmarked ? "Saved" : "Save"}
+            <span>{bookmarked ? "Saved" : "Save"}</span>
+            <span className="tabular-nums">{formatCompactCount(bookmarkCount)}</span>
           </Button>
           <Button
+            aria-label={liked ? `Liked by ${likeCount} ${readerLabel(likeCount)}` : `Like this story. Liked by ${likeCount} ${readerLabel(likeCount)}`}
             aria-pressed={liked}
             disabled={pending}
             onClick={toggleLike}
@@ -325,7 +343,8 @@ export function ArticleActions({ articleSlug }: ArticleActionsProps) {
             variant={liked ? "default" : "outline"}
           >
             <Heart />
-            {liked ? "Liked" : "Like"}
+            <span>{liked ? "Liked" : "Like"}</span>
+            <span className="tabular-nums">{formatCompactCount(likeCount)}</span>
           </Button>
           <Button
             aria-pressed={following}
@@ -395,4 +414,12 @@ export function ArticleActions({ articleSlug }: ArticleActionsProps) {
       </div>
     </section>
   );
+}
+
+function formatCompactCount(value: number) {
+  return new Intl.NumberFormat("en", { notation: "compact" }).format(value);
+}
+
+function readerLabel(value: number) {
+  return value === 1 ? "reader" : "readers";
 }

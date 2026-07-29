@@ -325,7 +325,14 @@ function FloatingPanel({
         }}
       >
         <h2 className="text-sm font-semibold">{title}</h2>
-        <button aria-label={`Close ${title}`} onClick={onClose} type="button">
+        <button
+          aria-label={`Close ${title}`}
+          className="inline-flex size-8 items-center justify-center rounded-md border bg-background text-muted-foreground hover:text-foreground"
+          onClick={onClose}
+          onPointerDown={(event) => event.stopPropagation()}
+          title={`Close ${title}`}
+          type="button"
+        >
           <X aria-hidden className="size-4" />
         </button>
       </div>

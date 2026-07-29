@@ -9,6 +9,8 @@ export type ReviewQueueItem = {
   excerpt: string | null;
   plainText: string;
   contentHtml: string;
+  featuredImageUrl: string | null;
+  featuredImageAlt: string | null;
   status: ReviewStatus;
   submittedAt: string | null;
   updatedAt: string;
@@ -47,6 +49,8 @@ type ArticleRow = {
   excerpt: string | null;
   plain_text: string;
   content: { html?: string } | null;
+  featured_image_url: string | null;
+  featured_image_alt: string | null;
   status: string;
   submitted_at: string | null;
   updated_at: string;
@@ -76,7 +80,7 @@ const reviewStatuses: ReviewStatus[] = ["submitted", "in_review", "revision_requ
 export async function loadEditorReviewQueue(supabase: SupabaseClient): Promise<ReviewQueuePayload> {
   const { data: articles, error: articleError } = await supabase
     .from("articles")
-    .select("id, title, excerpt, plain_text, content, status, submitted_at, updated_at, author_id")
+    .select("id, title, excerpt, plain_text, content, featured_image_url, featured_image_alt, status, submitted_at, updated_at, author_id")
     .in("status", reviewStatuses)
     .order("submitted_at", { ascending: true, nullsFirst: false })
     .limit(50);
@@ -144,6 +148,8 @@ export async function loadEditorReviewQueue(supabase: SupabaseClient): Promise<R
       excerpt: article.excerpt,
       plainText: article.plain_text,
       contentHtml: typeof article.content?.html === "string" ? article.content.html : "",
+      featuredImageUrl: article.featured_image_url,
+      featuredImageAlt: article.featured_image_alt,
       status: article.status,
       submittedAt: article.submitted_at,
       updatedAt: article.updated_at,

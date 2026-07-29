@@ -327,11 +327,28 @@ export function EditorReviewQueueClient() {
                     <p className="text-base leading-8 text-muted-foreground">
                       {selected.excerpt ?? "No excerpt was provided."}
                     </p>
+                    {selected.featuredImageUrl ? (
+                      <figure>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          alt={selected.featuredImageAlt || "Article cover image"}
+                          className="aspect-[4/3] w-full rounded-md object-cover"
+                          src={selected.featuredImageUrl}
+                        />
+                      </figure>
+                    ) : null}
                     <div className="grid gap-4 border-t pt-4">
                       <h3 className="text-sm font-semibold">Article text</h3>
-                      <div className="max-h-96 overflow-y-auto whitespace-pre-wrap rounded-md border bg-background p-4 text-sm leading-7 text-muted-foreground">
-                        {selected.plainText}
-                      </div>
+                      {selected.contentHtml ? (
+                        <div
+                          className="reader-rich-body rounded-md border bg-background p-4 text-base leading-8"
+                          dangerouslySetInnerHTML={{ __html: selected.contentHtml }}
+                        />
+                      ) : (
+                        <div className="whitespace-pre-wrap rounded-md border bg-background p-4 text-sm leading-7 text-muted-foreground">
+                          {selected.plainText}
+                        </div>
+                      )}
                     </div>
                   </article>
 
