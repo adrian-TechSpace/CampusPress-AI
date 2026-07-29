@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import { getAuthor, type Article } from "@/lib/reader-data";
+import { getArticleAuthor, type Article } from "@/lib/reader-data";
 
 type ArticleCardProps = {
   article: Article;
@@ -9,7 +9,7 @@ type ArticleCardProps = {
 };
 
 export function ArticleCard({ article, note }: ArticleCardProps) {
-  const author = getAuthor(article.authorId);
+  const author = getArticleAuthor(article);
 
   return (
     <article className="grid gap-6 border-b py-8 md:grid-cols-[2fr_1fr]">
@@ -19,7 +19,10 @@ export function ArticleCard({ article, note }: ArticleCardProps) {
           <span className="text-muted-foreground">{article.readTime}</span>
         </div>
         <Link href={`/articles/${article.slug}`}>
-          <h2 className="font-serif text-4xl font-semibold leading-tight text-foreground transition-colors hover:text-primary">
+          <h2
+            className="font-serif text-4xl font-semibold leading-tight text-foreground transition-colors hover:text-primary"
+            data-testid="article-card-title"
+          >
             {article.title}
           </h2>
         </Link>
@@ -38,13 +41,22 @@ export function ArticleCard({ article, note }: ArticleCardProps) {
         className="relative block aspect-[4/3] overflow-hidden rounded-md bg-muted"
         href={`/articles/${article.slug}`}
       >
-        <Image
-          alt={article.imageAlt}
-          className="object-cover"
-          fill
-          sizes="(min-width: 768px) 30vw, 100vw"
-          src={article.heroImage}
-        />
+        {typeof article.heroImage === "string" ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            alt={article.imageAlt}
+            className="size-full object-cover"
+            src={article.heroImage}
+          />
+        ) : (
+          <Image
+            alt={article.imageAlt}
+            className="object-cover"
+            fill
+            sizes="(min-width: 768px) 30vw, 100vw"
+            src={article.heroImage}
+          />
+        )}
       </Link>
     </article>
   );

@@ -66,12 +66,14 @@ type ProfileRow = {
 
 type AnalysisRow = {
   article_id: string;
+  model_family?: string;
   status: string;
   score: number | null;
   confidence: number | null;
   verdict: string | null;
-  flagged_sentences: Array<{ reason?: string }> | null;
-  raw_output: { key?: string } | null;
+  flagged_sentences: Array<{ text?: string; reason?: string }> | null;
+  raw_output: { key?: string; disclosure?: string } | null;
+  error_message?: string | null;
   created_at: string;
 };
 
@@ -200,7 +202,9 @@ export async function applyEditorReviewAction(
     throw new Error("CampusPress could not find that submission.");
   }
 
-  const decision = decisionCopy(action, cleanNote, article.title);
+  const revisionGuidance =
+    action === "request_revision" ? await loadRevisionGuidanceEvidence(supabase, articleId) : [];
+  const decision = decisionCopy(action, cleanNote, article.title, revisionGuidance);
   const { data: updated, error: updateError } = await supabase
     .from("articles")
     .update({
@@ -318,7 +322,49 @@ function averageReviewHours(rows: Array<{ submitted_at: string | null; reviewed_
   return Number((durations.reduce((sum, duration) => sum + duration, 0) / durations.length).toFixed(1));
 }
 
-function decisionCopy(action: ReviewDecision, note: string, title: string) {
+async function loadRevisionGuidanceEvidence(supabase: SupabaseClient, articleId: string) {
+  const { data, error } = await supabase
+    .from("ai_analyses")
+    .select("article_id, model_family, status, score, confidence, verdict, flagged_sentences, raw_output, error_message, created_at")
+    .eq("article_id", articleId)
+    .order("created_at", { ascending: false })
+    .limit(30);
+
+  if (error) {
+    return [];
+  }
+
+  return buildRevisionGuidance((data ?? []) as AnalysisRow[]);
+}
+
+export function buildRevisionGuidance(rows: AnalysisRow[]) {
+  const latestByKey = latestAnalysesByArticle(rows);
+  const lines: string[] = [];
+
+  for (const analysisRows of latestByKey.values()) {
+    for (const row of analysisRows) {
+      const label = analysisLabel(row);
+      const flags = (row.flagged_sentences ?? []).filter((flag) => flag.reason?.trim()).slice(0, 2);
+
+      for (const flag of flags) {
+        lines.push(`${label}: ${formatFlagEvidence(flag)}`);
+      }
+
+      if (flags.length === 0 && row.status === "completed" && typeof row.score === "number" && row.score < 75 && row.verdict) {
+        lines.push(`${label}: ${row.verdict} Score ${Number(row.score).toFixed(1)}.`);
+      }
+
+      if (row.status === "failed") {
+        const reason = row.error_message || row.raw_output?.disclosure || "This check did not complete.";
+        lines.push(`${label}: ${reason}`);
+      }
+    }
+  }
+
+  return lines.map((line) => line.trim()).filter(Boolean).slice(0, 6);
+}
+
+function decisionCopy(action: ReviewDecision, note: string, title: string, revisionGuidance: string[] = []) {
   if (action === "approve") {
     return {
       status: "approved",
@@ -341,12 +387,59 @@ function decisionCopy(action: ReviewDecision, note: string, title: string) {
     };
   }
 
+  const evidenceBody =
+    revisionGuidance.length > 0
+      ? revisionGuidance.map((line) => `- ${line}`).join("\n")
+      : "- No specific AI evidence was stored for this article. Use the editor note above as the main revision guidance.";
+
   return {
     status: "revision_requested",
     notificationType: "revision_requested",
     notificationTitle: "Revision requested",
-    notificationBody: `An editor requested clear, specific next steps for "${title}". Open your messages, revise the article, and submit it again.`,
-    messageBody: `Revision request for "${title}": ${note}`,
+    notificationBody: `An editor requested revisions for "${title}". Open your messages for the editor note and AI report evidence to check.`,
+    messageBody: [
+      `Revision request for "${title}".`,
+      `Editor note: ${note}`,
+      `AI report evidence to check:\n${evidenceBody}`,
+      "Use this as a decision aid. Revise the story against the editor note first, then check the AI evidence for specific claims, grammar, sourcing, or credibility gaps.",
+    ].join("\n\n"),
     responseMessage: "Revision request sent to the journalist.",
   };
+}
+
+function analysisLabel(row: AnalysisRow) {
+  const key = row.raw_output?.key;
+  const labels: Record<string, string> = {
+    cardiff_sentiment: "Sentiment signal",
+    flesch_kincaid: "Readability signal",
+    huggingface_fake_news: "Fake-news signal",
+    languagetool: "Grammar signal",
+    openai_editorial: "OpenAI editorial signal",
+    openai_verification: "OpenAI verification signal",
+    pg_trgm_originality: "Originality signal",
+    rule_credibility: "Credibility rules",
+    tfidf_relevance: "Relevance signal",
+  };
+
+  return (key && labels[key]) || row.model_family || "AI report signal";
+}
+
+function formatFlagEvidence(flag: { text?: string; reason?: string }) {
+  const reason = flag.reason?.trim() || "Review this evidence.";
+  const text = flag.text?.trim();
+
+  if (!text) {
+    return reason;
+  }
+
+  return `${reason} Evidence: "${clipText(text, 140)}"`;
+}
+
+function clipText(value: string, limit: number) {
+  const clean = value.replace(/\s+/g, " ").trim();
+  if (clean.length <= limit) {
+    return clean;
+  }
+
+  return `${clean.slice(0, limit - 3)}...`;
 }

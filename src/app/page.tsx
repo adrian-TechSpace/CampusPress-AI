@@ -11,10 +11,14 @@ import { NewsletterForm } from "@/components/reader/newsletter-form";
 import { SiteNav } from "@/components/reader/site-nav";
 import { Button } from "@/components/ui/button";
 import { publishedArticles } from "@/lib/reader-data";
+import { loadPublishedFeedArticles } from "@/lib/reader-live-data";
 
-const latestArticle = publishedArticles[0];
+export const dynamic = "force-dynamic";
 
-export default function Home() {
+export default async function Home() {
+  const articles = await loadPublishedFeedArticles(8);
+  const latestArticle = articles[0] ?? publishedArticles[0];
+
   return (
     <main className="bg-background text-foreground">
       <SiteNav />
@@ -51,6 +55,12 @@ export default function Home() {
               </Button>
             </Link>
           </div>
+          <p className="max-w-xl text-sm leading-6 text-white/85">
+            Latest:{" "}
+            <Link className="font-semibold underline-offset-4 hover:underline" href={`/articles/${latestArticle.slug}`}>
+              {latestArticle.title}
+            </Link>
+          </p>
         </div>
       </section>
 

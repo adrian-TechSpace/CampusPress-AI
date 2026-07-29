@@ -6,12 +6,7 @@ import newspaperReader from "../../assets/Jornalism images/dcnigeriaapr13_NSTfie
 import fieldReporter from "../../assets/Jornalism images/Photo-by-Numbercfoto-via-Iwaria.jpg";
 import readingExperience from "../../assets/Jornalism images/onur-kurt-reading-newspaper-unsplash.jpg";
 
-export type Interest =
-  | "Campus Life"
-  | "Academics"
-  | "Investigations"
-  | "Opinion"
-  | "Student Government";
+export type Interest = string;
 
 export type Author = {
   id: string;
@@ -27,9 +22,12 @@ export type Article = {
   category: Interest;
   interests: Interest[];
   authorId: string;
+  authorName?: string;
+  authorRole?: string;
   publishedAt: string;
+  publishedSort?: string;
   readTime: string;
-  heroImage: StaticImageData;
+  heroImage: StaticImageData | string;
   imageAlt: string;
   imageCredit: string;
   body: string[];
@@ -194,41 +192,80 @@ export function getAuthor(authorId: string) {
   return authors.find((author) => author.id === authorId) ?? authors[0];
 }
 
+export function getArticleAuthor(article: Article) {
+  if (article.authorName) {
+    return {
+      id: article.authorId,
+      name: article.authorName,
+      role: article.authorRole ?? "Student journalist",
+      bio: "",
+    };
+  }
+
+  return getAuthor(article.authorId);
+}
+
 export function getArticle(slug: string) {
   return publishedArticles.find((article) => article.slug === slug);
 }
 
 export function scoreArticle(article: Article, selectedInterests: Interest[]) {
   return article.interests.reduce(
-    (score, interest) => score + (selectedInterests.includes(interest) ? 1 : 0),
+    (score, interest) =>
+      score + (selectedInterests.some((selectedInterest) => interestMatches(interest, selectedInterest)) ? 1 : 0),
     0,
   );
 }
 
-export function getPersonalizedFeed(selectedInterests: Interest[]) {
+export function hasSelectedInterestMatch(article: Article, selectedInterests: Interest[]) {
+  return scoreArticle(article, selectedInterests) > 0;
+}
+
+export function orderArticlesForInterests(articles: Article[], selectedInterests: Interest[]) {
   const activeInterests: Interest[] =
     selectedInterests.length > 0 ? selectedInterests : ["Campus Life"];
 
-  return [...publishedArticles]
-    .map((article) => ({
+  return [...articles]
+    .map((article, index) => ({
       article,
+      index,
       score: scoreArticle(article, activeInterests),
       matchedInterests: article.interests.filter((interest) =>
-        activeInterests.includes(interest),
+        activeInterests.some((selectedInterest) => interestMatches(interest, selectedInterest)),
       ),
     }))
-    .sort((a, b) => b.score - a.score || a.article.title.localeCompare(b.article.title));
+    .sort((a, b) => {
+      const aHasSelectedInterestMatch = hasSelectedInterestMatch(a.article, activeInterests);
+      const bHasSelectedInterestMatch = hasSelectedInterestMatch(b.article, activeInterests);
+
+      if (aHasSelectedInterestMatch !== bHasSelectedInterestMatch) {
+        return aHasSelectedInterestMatch ? -1 : 1;
+      }
+
+      return b.score - a.score || compareArticleDates(b.article, a.article) || a.index - b.index;
+    });
+}
+
+export function getPersonalizedFeed(
+  selectedInterests: Interest[],
+  articles: Article[] = publishedArticles,
+) {
+  return orderArticlesForInterests(articles, selectedInterests);
 }
 
 export function whyArticleAppears(article: Article, selectedInterests: Interest[]) {
   const matchedInterests = article.interests.filter((interest) =>
-    selectedInterests.includes(interest),
+    selectedInterests.some((selectedInterest) => interestMatches(interest, selectedInterest)),
   );
 
   if (matchedInterests.length > 0) {
     return `Why you are seeing this: it matches your interest in ${matchedInterests.join(
       " and ",
     )}.`;
+  }
+
+  if (selectedInterests.length > 0) {
+    return "Why you are seeing this: it fills out your feed after stories that match your selected interests.";
   }
 
   return "Why you are seeing this: Campus Life is included as your starter interest until you choose more topics.";
@@ -257,3 +294,44 @@ export function searchArticles(query: string) {
     return haystack.includes(trimmed);
   });
 }
+
+function compareArticleDates(left: Article, right: Article) {
+  return dateValue(left) - dateValue(right);
+}
+
+function dateValue(article: Article) {
+  const value = article.publishedSort ?? article.publishedAt;
+  const time = new Date(value).getTime();
+
+  return Number.isFinite(time) ? time : 0;
+}
+
+function interestMatches(left: Interest, right: Interest) {
+  const normalizedLeft = normalizeInterest(left);
+  const normalizedRight = normalizeInterest(right);
+
+  if (normalizedLeft === normalizedRight) {
+    return true;
+  }
+
+  const leftAliases = interestAliases[normalizedLeft] ?? [];
+  const rightAliases = interestAliases[normalizedRight] ?? [];
+
+  return leftAliases.includes(normalizedRight) || rightAliases.includes(normalizedLeft);
+}
+
+function normalizeInterest(value: Interest) {
+  return value
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+const interestAliases: Record<string, string[]> = {
+  academics: ["research"],
+  "campus life": ["campus news", "student life"],
+  "campus news": ["campus life", "student life"],
+  research: ["academics"],
+  "student life": ["campus life", "campus news"],
+};

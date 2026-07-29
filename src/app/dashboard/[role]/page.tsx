@@ -9,6 +9,7 @@ import {
 import { ReaderHomeClient } from "@/components/reader/reader-home-client";
 import { AuthenticatedShell } from "@/components/reader/authenticated-rail";
 import { AdminDashboardClient } from "@/components/admin/admin-dashboard-client";
+import { loadPublishedFeedArticles } from "@/lib/reader-live-data";
 
 type DashboardRolePageProps = {
   params: Promise<{
@@ -26,10 +27,12 @@ export default async function DashboardRolePage({ params }: DashboardRolePagePro
   const typedRole = role as AppRole;
 
   if (typedRole === "reader") {
+    const articles = await loadPublishedFeedArticles();
+
     return (
       <main className="min-h-dvh bg-background text-foreground">
         <AuthenticatedShell>
-        <ReaderHomeClient />
+        <ReaderHomeClient initialArticles={articles} />
         </AuthenticatedShell>
       </main>
     );

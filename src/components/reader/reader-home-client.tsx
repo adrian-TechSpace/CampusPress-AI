@@ -9,10 +9,11 @@ import logo from "../../../assets/Chrisland university logo.webp";
 import { Button } from "@/components/ui/button";
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
 import {
-  getAuthor,
+  getArticleAuthor,
   getPersonalizedFeed,
   publishedArticles,
   whyArticleAppears,
+  type Article,
   type Interest,
 } from "@/lib/reader-data";
 
@@ -23,19 +24,25 @@ type JournalistProfile = {
   bio: string | null;
 };
 
-export function ReaderHomeClient() {
+const starterDashboardInterests: Interest[] = ["Campus Life", "Academics"];
+
+type ReaderHomeClientProps = {
+  initialArticles?: Article[];
+};
+
+export function ReaderHomeClient({ initialArticles = publishedArticles }: ReaderHomeClientProps) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [userId, setUserId] = useState("");
   const [followingIds, setFollowingIds] = useState<string[]>([]);
   const [journalists, setJournalists] = useState<JournalistProfile[]>([]);
-  const [selectedInterests] = useState<Interest[]>(["Campus Life", "Academics"]);
+  const [selectedInterests, setSelectedInterests] = useState<Interest[]>(starterDashboardInterests);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [assistantPosition, setAssistantPosition] = useState({ x: 24, y: 104 });
   const [messagesPosition, setMessagesPosition] = useState({ x: 24, y: 24 });
 
-  const feed = getPersonalizedFeed(selectedInterests);
-  const latest = [...publishedArticles].slice(0, 4);
+  const feed = getPersonalizedFeed(selectedInterests, initialArticles);
+  const latest = [...initialArticles].slice(0, 4);
   const whoToFollow = journalists.filter((profile) => !followingIds.includes(profile.id)).slice(0, 3);
 
   useEffect(() => {
@@ -53,7 +60,7 @@ export function ReaderHomeClient() {
         return;
       }
 
-      const [follows, profiles] = await Promise.all([
+      const [follows, profiles, readerProfile] = await Promise.all([
         supabase.from("follows").select("following_id").eq("follower_id", id),
         supabase
           .from("profiles")
@@ -61,6 +68,11 @@ export function ReaderHomeClient() {
           .eq("role", "journalist")
           .neq("id", id)
           .limit(8),
+        supabase
+          .from("profiles")
+          .select("preferences")
+          .eq("id", id)
+          .maybeSingle(),
       ]);
 
       if (!active) {
@@ -73,6 +85,13 @@ export function ReaderHomeClient() {
 
       if (!profiles.error) {
         setJournalists((profiles.data ?? []) as JournalistProfile[]);
+      }
+
+      if (!readerProfile.error) {
+        const savedInterests = readProfileInterests(readerProfile.data?.preferences);
+        if (savedInterests.length > 0) {
+          setSelectedInterests(savedInterests);
+        }
       }
     }
 
@@ -117,7 +136,7 @@ export function ReaderHomeClient() {
 
         <div>
           {feed.map(({ article }) => {
-            const author = getAuthor(article.authorId);
+            const author = getArticleAuthor(article);
             return (
               <article className="grid gap-4 border-b px-5 py-6" key={article.slug}>
                 <div className="flex items-center justify-between gap-4 text-sm">
@@ -134,13 +153,22 @@ export function ReaderHomeClient() {
                   className="relative block aspect-[16/9] overflow-hidden rounded-md bg-muted"
                   href={`/articles/${article.slug}`}
                 >
-                  <Image
-                    alt={article.imageAlt}
-                    className="object-cover"
-                    fill
-                    sizes="(min-width: 1024px) 40rem, 100vw"
-                    src={article.heroImage}
-                  />
+                  {typeof article.heroImage === "string" ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      alt={article.imageAlt}
+                      className="size-full object-cover"
+                      src={article.heroImage}
+                    />
+                  ) : (
+                    <Image
+                      alt={article.imageAlt}
+                      className="object-cover"
+                      fill
+                      sizes="(min-width: 1024px) 40rem, 100vw"
+                      src={article.heroImage}
+                    />
+                  )}
                 </Link>
                 <p className="rounded-md border bg-card px-3 py-2 text-sm leading-6 text-muted-foreground">
                   {whyArticleAppears(article, selectedInterests)}
@@ -254,6 +282,19 @@ function Module({ children, title }: { children: ReactNode; title: string }) {
 
 function Activity({ text }: { text: string }) {
   return <p className="border-b py-3 text-sm leading-6 text-muted-foreground last:border-b-0">{text}</p>;
+}
+
+function readProfileInterests(preferences: unknown): Interest[] {
+  if (!preferences || typeof preferences !== "object" || !("interests" in preferences)) {
+    return [];
+  }
+
+  const value = (preferences as { interests?: unknown }).interests;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((interest): interest is Interest => typeof interest === "string" && interest.trim().length > 0);
 }
 
 function FloatingBubble({
