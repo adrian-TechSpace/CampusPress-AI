@@ -51,8 +51,8 @@ export function ReaderHomeClient({ initialArticles = publishedArticles }: Reader
     async function load() {
       let id = "";
       try {
-        const { data: userData } = await supabase.auth.getUser();
-        id = userData.user?.id ?? "";
+        const { data: sessionData } = await supabase.auth.getSession();
+        id = sessionData.session?.user.id ?? "";
       } catch {
         return;
       }

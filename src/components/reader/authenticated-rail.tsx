@@ -50,8 +50,8 @@ export function AuthenticatedRail() {
     async function loadProfile() {
       let userId: string | undefined;
       try {
-        const { data: userData } = await supabase.auth.getUser();
-        userId = userData.user?.id;
+        const { data: sessionData } = await supabase.auth.getSession();
+        userId = sessionData.session?.user.id;
       } catch {
         if (active) {
           setProfile(null);
