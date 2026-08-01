@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   ArrowDownWideNarrow,
@@ -16,6 +17,7 @@ import { AnalysisReportPanel } from "@/components/editor/analysis-report-client"
 import { AuthenticatedShell } from "@/components/reader/authenticated-rail";
 import { Button } from "@/components/ui/button";
 import { technicalTermTooltips } from "@/lib/editor-tooltips";
+import { isAppRole } from "@/lib/onboarding";
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
 import type { AnalysisReport } from "@/lib/analysis/types";
 import type { ReviewAnalytics, ReviewDecision, ReviewQueueItem, ReviewStatus } from "@/lib/editor-review";
@@ -44,6 +46,7 @@ const filterOptions: Array<{ label: string; value: FilterValue }> = [
 ];
 
 export function EditorReviewQueueClient() {
+  const router = useRouter();
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [items, setItems] = useState<ReviewQueueItem[]>([]);
   const [analytics, setAnalytics] = useState<ReviewAnalytics | null>(null);
@@ -61,6 +64,27 @@ export function EditorReviewQueueClient() {
     const { data } = await supabase.auth.getSession();
     return data.session?.access_token ?? null;
   }, [supabase]);
+
+  const redirectDeniedViewer = useCallback(async () => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session?.user.id;
+
+    if (userId) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (profile?.role && isAppRole(profile.role)) {
+        router.replace(`/dashboard/${profile.role}`);
+        return;
+      }
+    }
+
+    await supabase.auth.signOut();
+    router.replace("/auth?mode=login");
+  }, [router, supabase]);
 
   useEffect(() => {
     let active = true;
@@ -86,6 +110,9 @@ export function EditorReviewQueueClient() {
       setLoading(false);
       if (!response.ok || !result.ok || !result.items || !result.analytics) {
         setMessage(result.message ?? "CampusPress could not load the editorial review queue.");
+        if (response.status === 403) {
+          void redirectDeniedViewer();
+        }
         return;
       }
 
@@ -105,7 +132,7 @@ export function EditorReviewQueueClient() {
     return () => {
       active = false;
     };
-  }, [accessToken]);
+  }, [accessToken, redirectDeniedViewer]);
 
   useEffect(() => {
     let active = true;
