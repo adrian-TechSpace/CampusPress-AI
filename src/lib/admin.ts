@@ -345,6 +345,20 @@ export async function moderateArticle(
   articleId: string,
   action: "publish" | "hide" | "restore",
 ) {
+  const { data: currentArticle, error: currentArticleError } = await supabase
+    .from("articles")
+    .select("id, status")
+    .eq("id", articleId)
+    .single();
+
+  if (currentArticleError || !currentArticle) {
+    throw new Error("CampusPress could not find that article.");
+  }
+
+  if (action === "publish" && currentArticle.status !== "approved") {
+    throw new Error("Article must be approved by an editor before publication.");
+  }
+
   const now = new Date().toISOString();
   const next =
     action === "publish"
