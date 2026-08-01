@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authenticateAnalysisRequest } from "@/lib/analysis/auth";
 import { runArticleAnalysis } from "@/lib/analysis/orchestrator";
 import type { AnalysisArticle, AnalysisCheckKey } from "@/lib/analysis/types";
+import { createEditorSubmissionNotifications } from "@/lib/submission-notifications";
 import { createServiceSupabaseClient } from "@/lib/supabase-server";
 
 export const runtime = "nodejs";
@@ -39,6 +40,8 @@ export async function POST(request: Request) {
   if (!canRequest) {
     return NextResponse.json({ ok: false, message: "You cannot request analysis for this article." }, { status: 403 });
   }
+
+  await createEditorSubmissionNotifications(supabase, article);
 
   const failureCheckAuthorized =
     Boolean(process.env.CRON_SECRET) &&

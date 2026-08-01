@@ -1,6 +1,5 @@
-import { Bell } from "lucide-react";
-
 import { ReaderChrome } from "@/components/reader/reader-chrome";
+import { NotificationsClient } from "@/components/reader/notifications-client";
 import { notifications } from "@/lib/reader-data";
 
 export default function NotificationsPage() {
@@ -20,27 +19,7 @@ export default function NotificationsPage() {
           </p>
         </div>
 
-        <div className="flex flex-col gap-4">
-          {notifications.map((notification) => (
-            <article
-              className="rounded-md border bg-card p-6"
-              key={notification.id}
-            >
-              <div className="flex items-start gap-4">
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-accent text-primary">
-                  <Bell className="size-5" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">{notification.time}</p>
-                  <h2 className="mt-1 text-xl font-semibold">{notification.title}</h2>
-                  <p className="mt-2 leading-7 text-muted-foreground">
-                    {notification.description}
-                  </p>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
+        <NotificationsClient fallbackNotifications={notifications} />
       </section>
     </ReaderChrome>
   );
