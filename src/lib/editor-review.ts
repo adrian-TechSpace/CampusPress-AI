@@ -188,7 +188,7 @@ export async function applyEditorReviewAction(
   note: string,
 ) {
   const cleanNote = note.trim();
-  if ((action === "request_revision" || action === "reject") && cleanNote.length < 12) {
+  if (cleanNote.length < 12) {
     throw new Error("Add a clear decision note before sending this update.");
   }
 
