@@ -289,7 +289,7 @@ function railItems(role: string): RailItem[] {
 
 function roleHomeHref(role: string) {
   if (role === "journalist") {
-    return "/write";
+    return "/dashboard/journalist";
   }
   if (role === "reader") {
     return "/dashboard/reader";

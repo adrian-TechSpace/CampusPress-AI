@@ -9,8 +9,8 @@ export default function DashboardIndexPage() {
           Choose a role workspace
         </h1>
         <p className="text-base leading-8 text-muted-foreground">
-          Phase 2 has role-aware landing points so auth can route users into the correct
-          workspace as each product surface comes online.
+          Open the CampusPress home for each role, then continue into writing,
+          review, or administration from that role summary.
         </p>
         <div className="grid gap-4 md:grid-cols-2">
           {["reader", "journalist", "editor", "admin"].map((role) => (

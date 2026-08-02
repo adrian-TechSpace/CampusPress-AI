@@ -1,5 +1,5 @@
-import { EditorReviewQueueClient } from "@/components/editor/editor-review-queue-client";
+import { RoleHomeClient } from "@/components/dashboard/role-home-client";
 
 export default function EditorDashboardPage() {
-  return <EditorReviewQueueClient />;
+  return <RoleHomeClient role="editor" />;
 }
