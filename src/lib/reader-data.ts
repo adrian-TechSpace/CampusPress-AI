@@ -5,6 +5,7 @@ import lectureRooms from "../../assets/Entrance of lecture rooms.jpg";
 import newspaperReader from "../../assets/Jornalism images/dcnigeriaapr13_NSTfield_image_socialmedia.var_1586762471.jpg";
 import fieldReporter from "../../assets/Jornalism images/Photo-by-Numbercfoto-via-Iwaria.jpg";
 import readingExperience from "../../assets/Jornalism images/onur-kurt-reading-newspaper-unsplash.jpg";
+import { categoryNames } from "@/lib/categories";
 
 export type Interest = string;
 
@@ -33,13 +34,7 @@ export type Article = {
   body: string[];
 };
 
-export const interests: Interest[] = [
-  "Campus Life",
-  "Academics",
-  "Investigations",
-  "Opinion",
-  "Student Government",
-];
+export const interests: Interest[] = categoryNames;
 
 export const authors: Author[] = [
   {

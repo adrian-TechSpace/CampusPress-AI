@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   }
 
   const canRequest =
-    article.author_id === userId || profile.role === "editor" || profile.role === "admin";
+    article.author_id === userId || profile.role === "editor" || profile.role === "admin" || profile.role === "subadmin";
 
   if (!canRequest) {
     return NextResponse.json({ ok: false, message: "You cannot request analysis for this article." }, { status: 403 });

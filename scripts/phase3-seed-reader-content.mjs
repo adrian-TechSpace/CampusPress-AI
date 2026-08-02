@@ -62,10 +62,15 @@ const authors = [
 ];
 
 const categories = [
-  { name: "Campus Life", slug: "campus-life", description: "Campus life and student services." },
-  { name: "Academics", slug: "academics", description: "Academic spaces and learning coverage." },
-  { name: "Investigations", slug: "investigations", description: "Reported accountability stories." },
-  { name: "Opinion", slug: "opinion", description: "Context, columns, and reader-facing analysis." },
+  { name: "Campus News", slug: "campus-news", description: "Official stories, notices, and events from campus life." },
+  { name: "Campus Life", slug: "campus-life", description: "Student routines, campus services, clubs, and daily life." },
+  { name: "Academics", slug: "academics", description: "Classroom, department, assessment, and study coverage." },
+  { name: "Investigations", slug: "investigations", description: "Reported accountability stories with clear evidence." },
+  { name: "Opinion", slug: "opinion", description: "Student and lecturer commentary with clear attribution." },
+  { name: "Student Government", slug: "student-government", description: "Student representation, elections, and campus governance." },
+  { name: "Features", slug: "features", description: "Long-form reporting, interviews, and profiles." },
+  { name: "Research", slug: "research", description: "Academic work, innovation, and department updates." },
+  { name: "Sports", slug: "sports", description: "Chrisland sports coverage and results." },
 ];
 
 const articles = [

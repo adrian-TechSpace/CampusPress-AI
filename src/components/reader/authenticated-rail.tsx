@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -17,6 +17,7 @@ import {
 
 import logo from "../../../assets/Chrisland university logo.webp";
 import { Button } from "@/components/ui/button";
+import type { AccountStatusPayload, AccountWarning } from "@/lib/account-enforcement";
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
 
 type Profile = {
@@ -35,7 +36,120 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh bg-background text-foreground">
       <AuthenticatedRail />
+      <AccountStatusGate />
       <div className="min-h-dvh pl-16">{children}</div>
+    </div>
+  );
+}
+
+function AccountStatusGate() {
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const [warning, setWarning] = useState<AccountWarning | null>(null);
+  const [dismissing, setDismissing] = useState(false);
+
+  const checkStatus = useCallback(async () => {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) {
+      setWarning(null);
+      return;
+    }
+
+    const response = await fetch("/api/auth/session-status", {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    }).catch(() => null);
+
+    if (!response) {
+      return;
+    }
+
+    const result = (await response.json().catch(() => ({}))) as AccountStatusPayload;
+    if (result.warning) {
+      setWarning(result.warning);
+    } else {
+      setWarning(null);
+    }
+
+    if (response.status === 403 || result.forceSignOut) {
+      window.sessionStorage.setItem(
+        "campuspress_account_status",
+        JSON.stringify({
+          ...result,
+          appealToken: result.appealToken ?? null,
+          capturedAt: Date.now(),
+        }),
+      );
+      await supabase.auth.signOut({ scope: "local" });
+      window.location.href = "/auth/account-status";
+    }
+  }, [supabase]);
+
+  useEffect(() => {
+    const initialTimer = window.setTimeout(() => void checkStatus(), 0);
+    const interval = window.setInterval(() => void checkStatus(), 15000);
+    const onFocus = () => void checkStatus();
+    const onVisibility = () => {
+      if (!document.hidden) {
+        void checkStatus();
+      }
+    };
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      window.clearTimeout(initialTimer);
+      window.clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [checkStatus]);
+
+  async function dismissWarning() {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) {
+      setWarning(null);
+      return;
+    }
+
+    setDismissing(true);
+    const response = await fetch("/api/account/warnings/ack", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => null);
+    setDismissing(false);
+
+    if (response?.ok) {
+      setWarning(null);
+    }
+  }
+
+  if (!warning) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-background/80 px-6 backdrop-blur">
+      <section className="grid max-w-lg gap-5 rounded-md border bg-card p-6 shadow-sm">
+        <div className="grid gap-2">
+          <p className="text-sm font-semibold text-primary">Account warning</p>
+          <h2 className="text-2xl font-semibold">Rules violation warning</h2>
+          <p className="text-sm leading-6 text-muted-foreground">
+            Your account has been flagged for a rules violation. Your account remains active, but continued violations may lead to suspension or a permanent ban.
+          </p>
+          <p className="rounded-md border bg-background p-3 text-sm leading-6">{warning.reason}</p>
+          <Link className="text-sm font-semibold text-primary" href={warning.rulesUrl}>
+            Read the platform rules
+          </Link>
+        </div>
+        <div className="flex justify-end">
+          <Button disabled={dismissing} onClick={dismissWarning} type="button">
+            {dismissing ? "Dismissing..." : "I understand"}
+          </Button>
+        </div>
+      </section>
     </div>
   );
 }
@@ -162,11 +276,11 @@ function railItems(role: string): RailItem[] {
     items.push({ href: "/write", label: "Write", icon: <PenLine aria-hidden className="size-5" /> });
   }
 
-  if (role === "editor" || role === "admin") {
+  if (role === "editor" || role === "admin" || role === "subadmin") {
     items.push({
-      href: `/dashboard/${role}`,
-      label: role === "admin" ? "Admin" : "Editor",
-      icon: role === "admin" ? <Shield aria-hidden className="size-5" /> : <LayoutDashboard aria-hidden className="size-5" />,
+      href: role === "subadmin" ? "/dashboard/admin" : `/dashboard/${role}`,
+      label: role === "editor" ? "Editor" : "Admin",
+      icon: role === "editor" ? <LayoutDashboard aria-hidden className="size-5" /> : <Shield aria-hidden className="size-5" />,
     });
   }
 
@@ -182,6 +296,9 @@ function roleHomeHref(role: string) {
   }
   if (role === "editor") {
     return "/dashboard/editor";
+  }
+  if (role === "subadmin") {
+    return "/dashboard/admin";
   }
   return `/dashboard/${role}`;
 }
