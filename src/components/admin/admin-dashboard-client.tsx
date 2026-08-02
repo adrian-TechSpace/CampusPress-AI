@@ -262,6 +262,7 @@ export function AdminDashboardClient() {
                 <UsagePanel overview={overview} />
               </div>
               <FlutterwavePanel acting={acting} onRunTest={runFlutterwaveTest} overview={overview} />
+              <AuditLogPanel overview={overview} />
             </>
           ) : (
             <div className="rounded-md border bg-card p-6 text-sm leading-6 text-muted-foreground">
@@ -699,6 +700,58 @@ function FlutterwavePanel({
   );
 }
 
+function AuditLogPanel({ overview }: { overview: AdminOverview }) {
+  return (
+    <section className="grid gap-5 rounded-md border bg-card p-5">
+      <div className="grid gap-2">
+        <h2 className="text-xl font-semibold">Audit log</h2>
+        <p className="text-sm leading-6 text-muted-foreground">
+          Review the most recent system actions recorded by the platform.
+        </p>
+      </div>
+      {overview.auditLog.length === 0 ? (
+        <p className="rounded-md border bg-background p-3 text-sm leading-6 text-muted-foreground">
+          No audit entries are available yet.
+        </p>
+      ) : (
+        <div className="overflow-x-auto rounded-md border">
+          <table className="w-full min-w-[760px] text-left text-sm">
+            <thead className="bg-muted text-xs uppercase text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2 font-semibold">Actor</th>
+                <th className="px-3 py-2 font-semibold">Action</th>
+                <th className="px-3 py-2 font-semibold">Table</th>
+                <th className="px-3 py-2 font-semibold">Record id</th>
+                <th className="px-3 py-2 font-semibold">Timestamp</th>
+              </tr>
+            </thead>
+            <tbody>
+              {overview.auditLog.map((entry) => (
+                <tr className="border-t align-top" key={entry.id}>
+                  <td className="px-3 py-3">
+                    <p className="font-semibold">{entry.actorName}</p>
+                    {entry.actorEmail ? (
+                      <p className="mt-1 text-xs text-muted-foreground">{entry.actorEmail}</p>
+                    ) : null}
+                  </td>
+                  <td className="break-words px-3 py-3 font-mono text-xs">{entry.action}</td>
+                  <td className="px-3 py-3">{entry.tableName}</td>
+                  <td className="break-all px-3 py-3 font-mono text-xs">
+                    {entry.recordId ?? "No record id"}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-3">
+                    {formatDateTime(entry.createdAt)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function StatusMessage({ message }: { message: string }) {
   return <p className="rounded-md border bg-card p-3 text-sm font-semibold text-muted-foreground">{message}</p>;
 }
@@ -709,6 +762,13 @@ function formatNaira(amountKobo: number) {
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(value));
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("en", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
 }
 
 function clip(value: string, maxLength: number) {

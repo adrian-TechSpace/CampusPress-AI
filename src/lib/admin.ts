@@ -39,6 +39,7 @@ export type AdminOverview = {
     rows: AdminRosterRow[];
     latestJob: AdminJobRow | null;
   };
+  auditLog: AdminAuditLogRow[];
 };
 
 export type AdminUserRow = {
@@ -120,6 +121,17 @@ export type AdminJobRow = {
   errorMessage: string | null;
 };
 
+export type AdminAuditLogRow = {
+  id: string;
+  actorId: string | null;
+  actorName: string;
+  actorEmail: string | null;
+  action: string;
+  tableName: string;
+  recordId: string | null;
+  createdAt: string;
+};
+
 export async function authenticateAdminRequest(request: Request) {
   const authorization = request.headers.get("authorization");
   const token = authorization?.replace(/^Bearer\s+/i, "");
@@ -165,6 +177,7 @@ export async function loadAdminOverview(supabase = createServiceSupabaseClient()
     subscriptionsResult,
     rosterResult,
     jobsResult,
+    auditResult,
   ] = await Promise.all([
     supabase
       .from("profiles")
@@ -208,9 +221,14 @@ export async function loadAdminOverview(supabase = createServiceSupabaseClient()
       .eq("job_name", "roster-cross-check")
       .order("started_at", { ascending: false })
       .limit(1),
+    supabase
+      .from("audit_log")
+      .select("id, actor_id, action, table_name, record_id, created_at")
+      .order("created_at", { ascending: false })
+      .limit(50),
   ]);
 
-  for (const result of [usersResult, articlesResult, commentsResult, usageResult, paymentsResult, subscriptionsResult, rosterResult, jobsResult]) {
+  for (const result of [usersResult, articlesResult, commentsResult, usageResult, paymentsResult, subscriptionsResult, rosterResult, jobsResult, auditResult]) {
     if (result.error) {
       throw result.error;
     }
@@ -218,6 +236,7 @@ export async function loadAdminOverview(supabase = createServiceSupabaseClient()
 
   const users = ((usersResult.data ?? []) as Record<string, unknown>[]).map(mapUser);
   const profilesById = new Map(users.map((user) => [user.id, user.fullName]));
+  const profilesByEmail = new Map(users.map((user) => [user.id, user.email]));
   const articles = ((articlesResult.data ?? []) as Record<string, unknown>[]).map((row) => ({
     id: stringValue(row.id),
     title: stringValue(row.title),
@@ -279,6 +298,19 @@ export async function loadAdminOverview(supabase = createServiceSupabaseClient()
     errorMessage: nullableString(row.error_message),
   }))[0] ?? null;
   const byProvider = groupUsageByProvider(usage);
+  const auditLog = ((auditResult.data ?? []) as Record<string, unknown>[]).map((row) => {
+    const actorId = nullableString(row.actor_id);
+    return {
+      id: stringValue(row.id),
+      actorId,
+      actorName: actorId ? profilesById.get(actorId) ?? actorId : "System",
+      actorEmail: actorId ? profilesByEmail.get(actorId) ?? null : null,
+      action: stringValue(row.action),
+      tableName: stringValue(row.table_name),
+      recordId: nullableString(row.record_id),
+      createdAt: stringValue(row.created_at),
+    };
+  });
 
   return {
     metrics: {
@@ -299,6 +331,7 @@ export async function loadAdminOverview(supabase = createServiceSupabaseClient()
       flutterwaveConfigured: flutterwaveConfigured(),
     },
     roster: { rows: rosterRows, latestJob },
+    auditLog,
   };
 }
 
