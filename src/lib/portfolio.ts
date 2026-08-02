@@ -27,29 +27,80 @@ export type PortfolioCredibility = {
   openAiExcludedSignals: number;
 };
 
-export type JournalistPortfolio = {
-  profile: {
-    id: string;
-    fullName: string;
-    username: string;
-    bio: string | null;
-    departmentCode: string;
-    verified: boolean;
-    verifiedAt: string | null;
-    articleCount: number;
-    credibilityScore: number;
-    createdAt: string;
-  };
-  articles: PortfolioArticle[];
-  badges: PortfolioBadge[];
-  credibility: PortfolioCredibility;
+export type RolePortfolioProfile = {
+  id: string;
+  fullName: string;
+  username: string;
+  role: "reader" | "journalist" | "editor" | "admin" | "subadmin";
+  bio: string | null;
+  avatarUrl: string | null;
+  departmentCode: string;
+  verified: boolean;
+  verifiedAt: string | null;
+  articleCount: number;
+  credibilityScore: number;
+  createdAt: string;
+  followerCount: number;
+  tenureLabel: string;
 };
+
+export type ReaderActivity = {
+  likedArticles: Array<{
+    title: string;
+    slug: string;
+    likedAt: string;
+  }>;
+  comments: Array<{
+    body: string;
+    articleTitle: string;
+    articleSlug: string;
+    createdAt: string;
+  }>;
+  sharesLikedArticles: boolean;
+  sharesComments: boolean;
+};
+
+export type EditorStats = {
+  reviewedCount: number;
+  approvedCount: number;
+  revisionRequestedCount: number;
+};
+
+export type RolePortfolio =
+  | {
+      kind: "reader";
+      profile: RolePortfolioProfile;
+      badges: PortfolioBadge[];
+      readerActivity: ReaderActivity;
+    }
+  | {
+      kind: "journalist";
+      profile: RolePortfolioProfile;
+      articles: PortfolioArticle[];
+      badges: PortfolioBadge[];
+      credibility: PortfolioCredibility;
+    }
+  | {
+      kind: "editor";
+      profile: RolePortfolioProfile;
+      badges: PortfolioBadge[];
+      editorStats: EditorStats;
+    }
+  | {
+      kind: "admin";
+      profile: RolePortfolioProfile;
+      badges: PortfolioBadge[];
+    };
+
+export type JournalistPortfolio = Extract<RolePortfolio, { kind: "journalist" }>;
 
 type ProfileRow = {
   id: string;
   full_name: string;
   username: string | null;
+  role: string;
   bio: string | null;
+  avatar_url: string | null;
   department_code: string;
   verified: boolean;
   verified_at: string | null;
@@ -60,6 +111,7 @@ type ProfileRow = {
 
 type ResolvedProfileRow = ProfileRow & {
   username: string;
+  role: RolePortfolioProfile["role"];
 };
 
 type ArticleRow = {
@@ -107,70 +159,264 @@ type AwardedPortfolioBadge = {
   awardedAt: string;
 };
 
-const openAiSignalKeys = new Set(["openai_editorial", "openai_verification"]);
+type PublicSettingsRow = {
+  show_liked_articles: boolean;
+  show_public_comments: boolean;
+};
 
-export async function loadJournalistPortfolio(username: string): Promise<JournalistPortfolio | null> {
+type LikedArticleRow = {
+  created_at: string;
+  articles:
+    | {
+        title?: string | null;
+        slug?: string | null;
+        status?: string | null;
+      }
+    | Array<{
+        title?: string | null;
+        slug?: string | null;
+        status?: string | null;
+      }>
+    | null;
+};
+
+type CommentActivityRow = {
+  body: string;
+  created_at: string;
+  articles:
+    | {
+        title?: string | null;
+        slug?: string | null;
+        status?: string | null;
+      }
+    | Array<{
+        title?: string | null;
+        slug?: string | null;
+        status?: string | null;
+      }>
+    | null;
+};
+
+const openAiSignalKeys = new Set(["openai_editorial", "openai_verification"]);
+const portfolioRoles = new Set(["reader", "journalist", "editor", "admin", "subadmin"]);
+
+export async function loadRolePortfolio(username: string): Promise<RolePortfolio | null> {
   const supabase = createServiceSupabaseClient();
   const cleanUsername = username.trim().toLowerCase();
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("id, full_name, username, bio, department_code, verified, verified_at, article_count, credibility_score, created_at")
+    .select("id, full_name, username, role, bio, avatar_url, department_code, verified, verified_at, article_count, credibility_score, created_at")
     .eq("username", cleanUsername)
-    .in("role", ["journalist", "editor"])
     .maybeSingle();
 
-  const profileUsername = profile?.username;
-  if (profileError || !profileUsername) {
+  if (profileError || !profile?.username || !portfolioRoles.has(String(profile.role))) {
     return null;
   }
 
-  const typedProfile = { ...(profile as ProfileRow), username: profileUsername };
-  const { data: articles, error: articleError } = await supabase
+  const typedProfile = profile as ResolvedProfileRow;
+  const [followerCount, awardedBadges] = await Promise.all([
+    loadFollowerCount(supabase, typedProfile.id),
+    loadAwardedBadges(supabase, typedProfile.id),
+  ]);
+  const baseProfile = mapProfile(typedProfile, followerCount);
+  const baseBadges = buildBaseBadges(typedProfile, awardedBadges);
+
+  if (typedProfile.role === "reader") {
+    return {
+      kind: "reader",
+      profile: baseProfile,
+      badges: baseBadges,
+      readerActivity: await loadReaderActivity(supabase, typedProfile.id),
+    };
+  }
+
+  if (typedProfile.role === "editor") {
+    return {
+      kind: "editor",
+      profile: baseProfile,
+      badges: baseBadges,
+      editorStats: await loadEditorStats(supabase, typedProfile.id),
+    };
+  }
+
+  if (typedProfile.role === "admin" || typedProfile.role === "subadmin") {
+    return {
+      kind: "admin",
+      profile: baseProfile,
+      badges: baseBadges,
+    };
+  }
+
+  const articles = await loadPublishedArticles(supabase, typedProfile.id);
+  const credibility = await loadCredibilityTrackRecord(
+    supabase,
+    articles.map((article) => article.id),
+  );
+
+  return {
+    kind: "journalist",
+    profile: baseProfile,
+    articles: articles.map(mapArticle),
+    badges: buildJournalistBadges(typedProfile, articles, credibility, awardedBadges),
+    credibility,
+  };
+}
+
+export async function loadJournalistPortfolio(username: string): Promise<JournalistPortfolio | null> {
+  const portfolio = await loadRolePortfolio(username);
+  return portfolio?.kind === "journalist" ? portfolio : null;
+}
+
+async function loadFollowerCount(
+  supabase: ReturnType<typeof createServiceSupabaseClient>,
+  userId: string,
+) {
+  const { count, error } = await supabase
+    .from("follows")
+    .select("id", { count: "exact", head: true })
+    .eq("following_id", userId);
+
+  if (error) {
+    throw error;
+  }
+
+  return count ?? 0;
+}
+
+async function loadPublishedArticles(
+  supabase: ReturnType<typeof createServiceSupabaseClient>,
+  authorId: string,
+) {
+  const { data, error } = await supabase
     .from("articles")
     .select("id, title, slug, excerpt, plain_text, featured_image_url, featured_image_alt, published_at")
-    .eq("author_id", typedProfile.id)
+    .eq("author_id", authorId)
     .eq("status", "published")
     .order("published_at", { ascending: false, nullsFirst: false });
 
-  if (articleError) {
-    throw articleError;
+  if (error) {
+    throw error;
   }
 
-  const articleRows = (articles ?? []) as ArticleRow[];
-  const [credibility, awardedBadges] = await Promise.all([
-    loadCredibilityTrackRecord(
-      createServiceSupabaseClient(),
-      articleRows.map((article) => article.id),
-    ),
-    loadAwardedBadges(supabase, typedProfile.id),
+  return (data ?? []) as ArticleRow[];
+}
+
+async function loadReaderActivity(
+  supabase: ReturnType<typeof createServiceSupabaseClient>,
+  userId: string,
+): Promise<ReaderActivity> {
+  const { data: settings, error: settingsError } = await supabase
+    .from("profile_public_settings")
+    .select("show_liked_articles, show_public_comments")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (settingsError) {
+    throw settingsError;
+  }
+
+  const typedSettings = settings as PublicSettingsRow | null;
+  const sharesLikedArticles = Boolean(typedSettings?.show_liked_articles);
+  const sharesComments = Boolean(typedSettings?.show_public_comments);
+  const [likedArticles, comments] = await Promise.all([
+    sharesLikedArticles ? loadLikedArticles(supabase, userId) : Promise.resolve([]),
+    sharesComments ? loadPublicComments(supabase, userId) : Promise.resolve([]),
   ]);
 
   return {
-    profile: {
-      id: typedProfile.id,
-      fullName: typedProfile.full_name,
-      username: typedProfile.username,
-      bio: typedProfile.bio,
-      departmentCode: typedProfile.department_code,
-      verified: typedProfile.verified,
-      verifiedAt: typedProfile.verified_at,
-      articleCount: Number(typedProfile.article_count ?? 0),
-      credibilityScore: Number(typedProfile.credibility_score ?? 0),
-      createdAt: typedProfile.created_at,
-    },
-    articles: articleRows.map((article) => ({
-      id: article.id,
-      title: article.title,
-      slug: article.slug,
-      excerpt: article.excerpt,
-      plainText: article.plain_text,
-      featuredImageUrl: article.featured_image_url,
-      featuredImageAlt: article.featured_image_alt,
-      publishedAt: article.published_at,
-    })),
-    badges: buildPortfolioBadges(typedProfile, articleRows, credibility, awardedBadges),
-    credibility,
+    likedArticles,
+    comments,
+    sharesLikedArticles,
+    sharesComments,
+  };
+}
+
+async function loadLikedArticles(
+  supabase: ReturnType<typeof createServiceSupabaseClient>,
+  userId: string,
+) {
+  const { data, error } = await supabase
+    .from("article_likes")
+    .select("created_at, articles(title, slug, status)")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(6);
+
+  if (error) {
+    throw error;
+  }
+
+  return ((data ?? []) as LikedArticleRow[])
+    .map((row) => {
+      const article = Array.isArray(row.articles) ? row.articles[0] : row.articles;
+      if (!article?.title || !article.slug || article.status !== "published") {
+        return null;
+      }
+
+      return {
+        title: article.title,
+        slug: article.slug,
+        likedAt: row.created_at,
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+}
+
+async function loadPublicComments(
+  supabase: ReturnType<typeof createServiceSupabaseClient>,
+  userId: string,
+) {
+  const { data, error } = await supabase
+    .from("comments")
+    .select("body, created_at, articles(title, slug, status)")
+    .eq("author_id", userId)
+    .eq("is_hidden", false)
+    .order("created_at", { ascending: false })
+    .limit(6);
+
+  if (error) {
+    throw error;
+  }
+
+  return ((data ?? []) as CommentActivityRow[])
+    .map((row) => {
+      const article = Array.isArray(row.articles) ? row.articles[0] : row.articles;
+      if (!article?.title || !article.slug || article.status !== "published") {
+        return null;
+      }
+
+      return {
+        body: row.body,
+        articleTitle: article.title,
+        articleSlug: article.slug,
+        createdAt: row.created_at,
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+}
+
+async function loadEditorStats(
+  supabase: ReturnType<typeof createServiceSupabaseClient>,
+  editorId: string,
+): Promise<EditorStats> {
+  const { data, error } = await supabase
+    .from("articles")
+    .select("id, status, reviewed_at")
+    .eq("editor_id", editorId)
+    .not("reviewed_at", "is", null)
+    .limit(1000);
+
+  if (error) {
+    throw error;
+  }
+
+  const rows = (data ?? []) as Array<{ status: string; reviewed_at: string | null }>;
+
+  return {
+    reviewedCount: rows.length,
+    approvedCount: rows.filter((row) => ["approved", "published"].includes(row.status)).length,
+    revisionRequestedCount: rows.filter((row) => row.status === "revision_requested").length,
   };
 }
 
@@ -280,10 +526,8 @@ function resolveAwardedBadgeTone(value: string | null | undefined): PortfolioBad
   return value === "gold" || value === "verified" ? "verified" : "standard";
 }
 
-function buildPortfolioBadges(
+function buildBaseBadges(
   profile: ResolvedProfileRow,
-  articles: ArticleRow[],
-  credibility: PortfolioCredibility,
   awardedBadges: AwardedPortfolioBadge[],
 ): PortfolioBadge[] {
   const badges = new Map<string, PortfolioBadge>();
@@ -295,22 +539,11 @@ function buildPortfolioBadges(
       evidence: profile.verified_at ? `Roster matched on ${formatDate(profile.verified_at)}.` : "Roster matched this profile.",
       tone: "verified",
     });
-  }
-
-  if (articles.length > 0) {
-    badges.set("published-reporter", {
-      name: "Published Reporter",
-      description: "Awarded when a journalist has public published work.",
-      evidence: `${articles.length} published ${articles.length === 1 ? "article" : "articles"} on this portfolio.`,
-      tone: "standard",
-    });
-  }
-
-  if (credibility.workingSignalAverage !== null && credibility.workingSignalAverage >= 75) {
-    badges.set("credibility-builder", {
-      name: "Credibility Builder",
-      description: "Awarded for published work with strong completed credibility signals.",
-      evidence: `Working-signal average: ${credibility.workingSignalAverage}% across ${credibility.completedWorkingSignals} completed checks.`,
+  } else {
+    badges.set("unverified-profile", {
+      name: "Unverified",
+      description: "No roster match has been recorded for this account yet.",
+      evidence: "This account has not received a roster verification match.",
       tone: "standard",
     });
   }
@@ -327,6 +560,87 @@ function buildPortfolioBadges(
   }
 
   return [...badges.values()];
+}
+
+function buildJournalistBadges(
+  profile: ResolvedProfileRow,
+  articles: ArticleRow[],
+  credibility: PortfolioCredibility,
+  awardedBadges: AwardedPortfolioBadge[],
+): PortfolioBadge[] {
+  const badges = new Map(buildBaseBadges(profile, awardedBadges).map((badge) => [badge.name, badge]));
+
+  if (articles.length > 0) {
+    badges.set("Published Reporter", {
+      name: "Published Reporter",
+      description: "Awarded when a journalist has public published work.",
+      evidence: `${articles.length} published ${articles.length === 1 ? "article" : "articles"} on this portfolio.`,
+      tone: "standard",
+    });
+  }
+
+  if (credibility.workingSignalAverage !== null && credibility.workingSignalAverage >= 75) {
+    badges.set("Credibility Builder", {
+      name: "Credibility Builder",
+      description: "Awarded for published work with strong completed credibility signals.",
+      evidence: `Working-signal average: ${credibility.workingSignalAverage}% across ${credibility.completedWorkingSignals} completed checks.`,
+      tone: "standard",
+    });
+  }
+
+  return [...badges.values()];
+}
+
+function mapProfile(profile: ResolvedProfileRow, followerCount: number): RolePortfolioProfile {
+  return {
+    id: profile.id,
+    fullName: profile.full_name,
+    username: profile.username,
+    role: profile.role,
+    bio: profile.bio,
+    avatarUrl: profile.avatar_url,
+    departmentCode: profile.department_code,
+    verified: profile.verified,
+    verifiedAt: profile.verified_at,
+    articleCount: Number(profile.article_count ?? 0),
+    credibilityScore: Number(profile.credibility_score ?? 0),
+    createdAt: profile.created_at,
+    followerCount,
+    tenureLabel: tenureLabel(profile.created_at),
+  };
+}
+
+function mapArticle(article: ArticleRow): PortfolioArticle {
+  return {
+    id: article.id,
+    title: article.title,
+    slug: article.slug,
+    excerpt: article.excerpt,
+    plainText: article.plain_text,
+    featuredImageUrl: article.featured_image_url,
+    featuredImageAlt: article.featured_image_alt,
+    publishedAt: article.published_at,
+  };
+}
+
+function tenureLabel(value: string) {
+  const created = new Date(value).getTime();
+  if (!Number.isFinite(created)) {
+    return "Tenure not recorded";
+  }
+
+  const days = Math.max(0, Math.floor((Date.now() - created) / 86_400_000));
+  if (days < 30) {
+    return `${days || 1} ${days === 1 ? "day" : "days"} on CampusPress`;
+  }
+
+  const months = Math.floor(days / 30);
+  if (months < 12) {
+    return `${months} ${months === 1 ? "month" : "months"} on CampusPress`;
+  }
+
+  const years = Math.floor(months / 12);
+  return `${years} ${years === 1 ? "year" : "years"} on CampusPress`;
 }
 
 function formatDate(value: string) {

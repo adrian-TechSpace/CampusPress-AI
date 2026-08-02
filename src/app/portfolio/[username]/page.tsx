@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 
 import { PortfolioPage } from "@/components/portfolio/portfolio-page";
 import { ReaderChrome } from "@/components/reader/reader-chrome";
-import { loadJournalistPortfolio } from "@/lib/portfolio";
+import { loadRolePortfolio } from "@/lib/portfolio";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,7 @@ type PortfolioRouteProps = {
 
 export async function generateMetadata({ params }: PortfolioRouteProps) {
   const { username } = await params;
-  const portfolio = await loadJournalistPortfolio(username);
+  const portfolio = await loadRolePortfolio(username);
 
   if (!portfolio) {
     return {
@@ -24,13 +24,13 @@ export async function generateMetadata({ params }: PortfolioRouteProps) {
 
   return {
     title: `${portfolio.profile.fullName} | CampusPress AI Portfolio`,
-    description: portfolio.profile.bio ?? `Published CampusPress work by ${portfolio.profile.fullName}.`,
+    description: portfolio.profile.bio ?? `CampusPress profile for ${portfolio.profile.fullName}.`,
   };
 }
 
 export default async function PortfolioRoute({ params }: PortfolioRouteProps) {
   const { username } = await params;
-  const portfolio = await loadJournalistPortfolio(username);
+  const portfolio = await loadRolePortfolio(username);
 
   if (!portfolio) {
     notFound();
