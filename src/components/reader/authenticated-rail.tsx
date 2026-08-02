@@ -17,6 +17,7 @@ import {
 
 import logo from "../../../assets/Chrisland university logo.webp";
 import { Button } from "@/components/ui/button";
+import { RoleTutorial } from "@/components/onboarding/role-tutorial";
 import type { AccountStatusPayload, AccountWarning } from "@/lib/account-enforcement";
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
 
@@ -37,6 +38,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
     <div className="min-h-dvh bg-background text-foreground">
       <AuthenticatedRail />
       <AccountStatusGate />
+      <RoleTutorial />
       <div className="min-h-dvh pl-16">{children}</div>
     </div>
   );

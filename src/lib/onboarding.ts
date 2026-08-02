@@ -217,7 +217,7 @@ export function getRoleDestination(role: SignupRole | string) {
   }
 
   if (role === "journalist") {
-    return "/write";
+    return "/dashboard/journalist";
   }
 
   return `/dashboard/${role}`;
