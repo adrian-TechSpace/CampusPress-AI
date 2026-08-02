@@ -29,6 +29,12 @@ import { AuthenticatedShell } from "@/components/reader/authenticated-rail";
 import { analyzeReadability, type GrammarIssue } from "@/lib/writing-analysis";
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
 
+type CategoryOption = {
+  id: string;
+  name: string;
+  slug: string;
+};
+
 type Profile = {
   id: string;
   role: string;
@@ -42,6 +48,7 @@ type DraftArticle = {
   plain_text: string;
   featured_image_url: string | null;
   featured_image_alt: string | null;
+  category_id: string | null;
   content: {
     format?: string;
     body?: string;
@@ -93,6 +100,12 @@ type PublishedEngagementPayload = {
   comments?: PublishedComment[];
 };
 
+type CategorySuggestion = {
+  name: string;
+  slug: string;
+  reason: string;
+};
+
 export function WriterWorkspace() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -110,6 +123,11 @@ export function WriterWorkspace() {
   const [excerpt, setExcerpt] = useState("");
   const [body, setBody] = useState("");
   const [richBody, setRichBody] = useState("");
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [categoryId, setCategoryId] = useState("");
+  const [categorySuggestion, setCategorySuggestion] = useState<CategorySuggestion | null>(null);
+  const [categorySuggestionChecked, setCategorySuggestionChecked] = useState(false);
+  const [suggestingCategory, setSuggestingCategory] = useState(false);
   const [coverImageUrl, setCoverImageUrl] = useState("");
   const [coverImageAlt, setCoverImageAlt] = useState("");
   const [status, setStatus] = useState("draft");
@@ -160,7 +178,11 @@ export function WriterWorkspace() {
   });
 
   const readability = useMemo(() => analyzeReadability(body), [body]);
-  const canSubmit = title.trim().length > 3 && body.trim().split(/\s+/).length >= 80;
+  const selectedCategory = categories.find((category) => category.id === categoryId) ?? null;
+  const canSubmit =
+    title.trim().length > 3 &&
+    body.trim().split(/\s+/).length >= 80 &&
+    (categories.length === 0 || Boolean(selectedCategory));
   const canSubmitForReview =
     canSubmit && !["submitted", "in_review", "approved"].includes(status);
   const analysisSteps = useMemo(
@@ -175,10 +197,20 @@ export function WriterWorkspace() {
     [],
   );
 
+  const loadCategories = useCallback(async () => {
+    const { data } = await supabase
+      .from("categories")
+      .select("id, name, slug")
+      .order("name", { ascending: true });
+    const nextCategories = (data ?? []) as CategoryOption[];
+    setCategories(nextCategories);
+    setCategoryId((current) => current || nextCategories[0]?.id || "");
+  }, [supabase]);
+
   const loadDrafts = useCallback(
     async (userId: string) => {
       const articleSelect =
-        "id, title, excerpt, plain_text, content, featured_image_url, featured_image_alt, status, slug, updated_at, submitted_at, published_at";
+        "id, title, excerpt, plain_text, content, featured_image_url, featured_image_alt, category_id, status, slug, updated_at, submitted_at, published_at";
       const [activeResult, archivedResult, publishedResult] = await Promise.all([
         supabase
           .from("articles")
@@ -288,6 +320,7 @@ export function WriterWorkspace() {
 
       setProfile((data ?? null) as Profile | null);
       if (data?.id) {
+        await loadCategories();
         await loadDrafts(data.id);
       }
       setLoading(false);
@@ -298,7 +331,7 @@ export function WriterWorkspace() {
     return () => {
       active = false;
     };
-  }, [loadDrafts, supabase]);
+  }, [loadCategories, loadDrafts, supabase]);
 
   useEffect(() => {
     if (draftView !== "published") {
@@ -311,30 +344,6 @@ export function WriterWorkspace() {
 
     return () => window.clearTimeout(timer);
   }, [draftView, loadPublishedEngagement, selectedPublishedArticle]);
-
-  useEffect(() => {
-    const handleOnline = () => {
-      setOnline(true);
-      void flushQueuedDraft();
-    };
-    const handleOffline = () => {
-      setOnline(false);
-      setSaveState({
-        tone: "error",
-        message: "Connection dropped. Drafts will queue on this device until you are online.",
-      });
-    };
-
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-    // This listener is reattached with the current editor state so queued drafts sync accurately.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile, articleId, title, excerpt, body, richBody, status]);
 
   useEffect(() => {
     const text = body.trim();
@@ -393,28 +402,6 @@ export function WriterWorkspace() {
     }
   }, [richBody, grammarIssues]);
 
-  useEffect(() => {
-    if (!profile || profile.role !== "journalist") {
-      return;
-    }
-
-    if (saveTimer.current) {
-      window.clearTimeout(saveTimer.current);
-    }
-
-    saveTimer.current = window.setTimeout(() => {
-      void saveDraft("autosave");
-    }, 1600);
-
-    return () => {
-      if (saveTimer.current) {
-        window.clearTimeout(saveTimer.current);
-      }
-    };
-    // saveDraft reads the latest editor state from this render and is intentionally debounced.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [body, excerpt, profile, richBody, title]);
-
   async function flushQueuedDraft() {
     const raw = window.localStorage.getItem(queueKey);
     if (!raw) {
@@ -428,6 +415,7 @@ export function WriterWorkspace() {
       body: string;
       richBody?: string;
       status: string;
+      categoryId?: string;
       coverImageUrl?: string;
       coverImageAlt?: string;
     };
@@ -435,7 +423,8 @@ export function WriterWorkspace() {
     setTitle(queued.title);
     setExcerpt(queued.excerpt);
     setBody(queued.body);
-    setRichBody(queued.richBody ?? plainTextToHtml(queued.body));
+      setRichBody(queued.richBody ?? plainTextToHtml(queued.body));
+    setCategoryId(queued.categoryId ?? categories[0]?.id ?? "");
     setCoverImageUrl(queued.coverImageUrl ?? "");
     setCoverImageAlt(queued.coverImageAlt ?? "");
     articleIdRef.current = queued.articleId;
@@ -452,6 +441,7 @@ export function WriterWorkspace() {
       body: string;
       richBody?: string;
       status: string;
+      categoryId?: string;
       coverImageUrl?: string;
       coverImageAlt?: string;
     },
@@ -469,6 +459,7 @@ export function WriterWorkspace() {
       body,
       richBody,
       status,
+      categoryId,
       coverImageUrl,
       coverImageAlt,
     };
@@ -497,6 +488,7 @@ export function WriterWorkspace() {
       body: cleanBody,
       richBody: cleanRichBody,
       status: nextStatus,
+      categoryId: draft.categoryId ?? "",
       coverImageUrl: draft.coverImageUrl ?? "",
       coverImageAlt: draft.coverImageAlt ?? "",
     });
@@ -531,7 +523,7 @@ export function WriterWorkspace() {
     const payload = {
       author_id: currentProfile.id,
       title: cleanTitle,
-      slug: draft.articleId ? undefined : `${slugify(cleanTitle)}-${Date.now().toString(36)}`,
+      slug: draft.articleId ? undefined : `${slugify(cleanTitle)}-${uniqueTimestampSuffix()}`,
       excerpt: draft.excerpt.trim() || null,
       content: {
         format: "rich-html-v1",
@@ -541,6 +533,7 @@ export function WriterWorkspace() {
       plain_text: cleanBody,
       featured_image_url: draft.coverImageUrl || null,
       featured_image_alt: draft.coverImageAlt || null,
+      category_id: draft.categoryId || null,
       status: nextStatus,
       submitted_at: reason === "submit" ? new Date().toISOString() : null,
     };
@@ -580,6 +573,52 @@ export function WriterWorkspace() {
       void runSubmittedAnalysis(data.id);
     }
   }
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setOnline(true);
+      void flushQueuedDraft();
+    };
+    const handleOffline = () => {
+      setOnline(false);
+      setSaveState({
+        tone: "error",
+        message: "Connection dropped. Drafts will queue on this device until you are online.",
+      });
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+    // This listener is reattached with the current editor state so queued drafts sync accurately.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile, articleId, title, excerpt, body, categoryId, richBody, status]);
+
+  useEffect(() => {
+    if (!profile || profile.role !== "journalist") {
+      return;
+    }
+
+    if (saveTimer.current) {
+      window.clearTimeout(saveTimer.current);
+    }
+
+    saveTimer.current = window.setTimeout(() => {
+      void saveDraft("autosave");
+    }, 1600);
+
+    return () => {
+      if (saveTimer.current) {
+        window.clearTimeout(saveTimer.current);
+      }
+    };
+    // saveDraft reads the latest editor state from this render and is intentionally debounced.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [body, categoryId, excerpt, profile, richBody, title]);
 
   async function runSubmittedAnalysis(submittedArticleId: string) {
     setAnalysisState({
@@ -688,6 +727,8 @@ export function WriterWorkspace() {
       setExcerpt("");
       setBody("");
       setRichBody("");
+      setCategoryId(categories[0]?.id ?? "");
+      resetCategorySuggestion();
       setCoverImageUrl("");
       setCoverImageAlt("");
       setStatus("draft");
@@ -734,6 +775,8 @@ export function WriterWorkspace() {
       setExcerpt("");
       setBody("");
       setRichBody("");
+      setCategoryId(categories[0]?.id ?? "");
+      resetCategorySuggestion();
       setCoverImageUrl("");
       setCoverImageAlt("");
       setStatus("draft");
@@ -790,7 +833,67 @@ export function WriterWorkspace() {
     }
   }
 
-  function handleSubmitForReview() {
+  async function requestCategorySuggestion() {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) {
+      return null;
+    }
+
+    setSuggestingCategory(true);
+    const response = await fetch("/api/writing/category-suggestion", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ title, excerpt, body }),
+    }).catch(() => null);
+    setSuggestingCategory(false);
+
+    if (!response?.ok) {
+      return null;
+    }
+
+    const result = (await response.json().catch(() => ({}))) as {
+      suggestion?: CategorySuggestion | null;
+    };
+    setCategorySuggestion(result.suggestion ?? null);
+    return result.suggestion ?? null;
+  }
+
+  function acceptCategorySuggestion() {
+    if (!categorySuggestion) {
+      return;
+    }
+
+    const matched = categories.find(
+      (category) => category.slug === categorySuggestion.slug || category.name === categorySuggestion.name,
+    );
+    if (matched) {
+      setCategoryId(matched.id);
+      setCategorySuggestionChecked(true);
+      setCategorySuggestion(null);
+      setSaveState({
+        tone: "success",
+        message: `Category set to ${matched.name}.`,
+      });
+    }
+  }
+
+  async function handleSubmitForReview() {
+    if (!categorySuggestionChecked) {
+      const suggestion = await requestCategorySuggestion();
+      setCategorySuggestionChecked(true);
+      if (suggestion) {
+        setSaveState({
+          tone: "neutral",
+          message: "AI suggestion available. Accept it or keep your selected category, then submit again.",
+        });
+        return;
+      }
+    }
+
     if (!coverImageUrl) {
       setPendingSubmitAfterCover(true);
       setCoverModalOpen(true);
@@ -839,7 +942,7 @@ export function WriterWorkspace() {
       .toLowerCase()
       .replace(/[^a-z0-9.]+/g, "-")
       .replace(/^-|-$/g, "");
-    const path = `${profile.id}/${Date.now()}-${safeName || `image.${extension}`}`;
+    const path = `${profile.id}/${uniqueTimestampSuffix()}-${safeName || `image.${extension}`}`;
     const { error } = await supabase.storage.from("article-images").upload(path, file, {
       cacheControl: "3600",
       contentType: file.type,
@@ -892,6 +995,7 @@ export function WriterWorkspace() {
         body,
         richBody,
         status,
+        categoryId,
         coverImageUrl: url,
         coverImageAlt: coverImageAlt || "Article cover image",
       }), 0);
@@ -905,6 +1009,8 @@ export function WriterWorkspace() {
     setExcerpt(article.excerpt ?? "");
     setBody(article.plain_text);
     setRichBody(article.content?.html ?? plainTextToHtml(article.plain_text));
+    setCategoryId(article.category_id ?? categories[0]?.id ?? "");
+    resetCategorySuggestion();
     setCoverImageUrl(article.featured_image_url ?? "");
     setCoverImageAlt(article.featured_image_alt ?? "");
     setStatus(article.status);
@@ -931,8 +1037,14 @@ export function WriterWorkspace() {
     return plain;
   }
 
+  function resetCategorySuggestion() {
+    setCategorySuggestion(null);
+    setCategorySuggestionChecked(false);
+  }
+
   function handleBodyInput() {
     const value = syncEditorState();
+    resetCategorySuggestion();
 
     if (value.trim().length < 12) {
       setGrammarIssues([]);
@@ -1078,6 +1190,8 @@ export function WriterWorkspace() {
                 setExcerpt("");
                 setBody("");
                 setRichBody("");
+                setCategoryId(categories[0]?.id ?? "");
+                resetCategorySuggestion();
                 setCoverImageUrl("");
                 setCoverImageAlt("");
                 setStatus("draft");
@@ -1348,17 +1462,78 @@ export function WriterWorkspace() {
             <textarea
               className="min-h-24 resize-none border-0 bg-background px-0 font-serif text-4xl font-semibold leading-tight shadow-none outline-none focus-visible:ring-0"
               onBlur={() => setFocused(false)}
-              onChange={(event) => setTitle(event.target.value)}
+              onChange={(event) => {
+                setTitle(event.target.value);
+                resetCategorySuggestion();
+              }}
               onFocus={() => setFocused(true)}
               placeholder="Headline"
               value={title}
             />
             <Input
               className="border-0 px-0 text-base shadow-none focus-visible:ring-0"
-              onChange={(event) => setExcerpt(event.target.value)}
+              onChange={(event) => {
+                setExcerpt(event.target.value);
+                resetCategorySuggestion();
+              }}
               placeholder="One-sentence summary for editors and readers"
               value={excerpt}
             />
+
+            <div className="grid gap-3 rounded-md border bg-card p-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                <label className="grid flex-1 gap-2 text-sm font-semibold">
+                  Category
+                  <select
+                    className="h-10 rounded-md border bg-background px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    onChange={(event) => {
+                      setCategoryId(event.target.value);
+                      resetCategorySuggestion();
+                    }}
+                    value={categoryId}
+                  >
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Button
+                  disabled={suggestingCategory || title.trim().length < 3}
+                  onClick={async () => {
+                    const suggestion = await requestCategorySuggestion();
+                    setCategorySuggestionChecked(true);
+                    if (suggestion) {
+                      setSaveState({
+                        tone: "neutral",
+                        message: "AI suggestion available. Accept it or keep your selected category.",
+                      });
+                    }
+                  }}
+                  type="button"
+                  variant="outline"
+                >
+                  {suggestingCategory ? "Checking..." : "Suggest category"}
+                </Button>
+              </div>
+              {categorySuggestion ? (
+                <div className="grid gap-3 rounded-md border bg-background p-3 text-sm leading-6">
+                  <p>
+                    <span className="font-semibold">AI suggestion:</span> {categorySuggestion.name}
+                  </p>
+                  <p className="text-muted-foreground">{categorySuggestion.reason}</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button onClick={acceptCategorySuggestion} size="sm" type="button">
+                      Accept suggestion
+                    </Button>
+                    <Button onClick={() => setCategorySuggestion(null)} size="sm" type="button" variant="outline">
+                      Keep selected category
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
 
             <div className="flex flex-wrap gap-2 border-y py-3" data-testid="writer-format-toolbar">
               <Button
@@ -1969,6 +2144,10 @@ function formatDateTime(value: string) {
     day: "numeric",
     year: "numeric",
   }).format(new Date(value));
+}
+
+function uniqueTimestampSuffix() {
+  return Date.now().toString(36);
 }
 
 function hasMeaningfulDraft(title: string, plainText: string, html: string) {

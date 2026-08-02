@@ -1,3 +1,5 @@
+import { canonicalCategories } from "@/lib/categories";
+
 export const departments = [
   { name: "Accounting", code: "ACC" },
   { name: "Computer Science", code: "CSC" },
@@ -21,7 +23,7 @@ export const departments = [
 export const departmentCodes = departments.map((department) => department.code);
 
 export const signupRoles = ["reader", "journalist"] as const;
-export const appRoles = ["reader", "journalist", "editor", "admin"] as const;
+export const appRoles = ["reader", "journalist", "editor", "admin", "subadmin"] as const;
 
 export type SignupRole = (typeof signupRoles)[number];
 export type AppRole = (typeof appRoles)[number];
@@ -49,6 +51,7 @@ export const appRoleLabels: Record<AppRole, string> = {
   journalist: "Student journalist",
   editor: "Editor or lecturer",
   admin: "Administrator",
+  subadmin: "Subadministrator",
 };
 
 export const appRoleDescriptions: Record<AppRole, string> = {
@@ -56,16 +59,10 @@ export const appRoleDescriptions: Record<AppRole, string> = {
   journalist: "Draft stories, receive editorial feedback, and build a portfolio.",
   editor: "Review submissions and use the AI report as an editorial aid.",
   admin: "Manage users, roster verification, moderation, and platform settings.",
+  subadmin: "Manage admin workflows except full administrator account removal and admin-tier invites.",
 };
 
-export const interestOptions = [
-  "Campus news",
-  "Research",
-  "Opinion",
-  "Sports",
-  "Features",
-  "Student life",
-];
+export const interestOptions = canonicalCategories.map((category) => category.name);
 
 export function normalizeDepartmentCode(value: string) {
   return value.trim().toUpperCase();
@@ -211,6 +208,18 @@ export function getAllowedSignupRole(role: SignupRole): AllowedSignupRole {
 }
 
 export function getRoleDestination(role: SignupRole | string) {
+  if (role === "subadmin") {
+    return "/dashboard/admin";
+  }
+
+  if (role === "editor") {
+    return "/dashboard/editor";
+  }
+
+  if (role === "journalist") {
+    return "/write";
+  }
+
   return `/dashboard/${role}`;
 }
 

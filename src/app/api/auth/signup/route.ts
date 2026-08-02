@@ -148,11 +148,23 @@ export async function POST(request: Request) {
 
   const { data: existingEmail } = await serviceSupabase
     .from("profiles")
-    .select("email")
+    .select("email, account_status, banned_reason")
     .eq("email", email)
     .maybeSingle();
 
   if (existingEmail) {
+    if (existingEmail.account_status === "banned") {
+      return NextResponse.json(
+        {
+          ok: false,
+          message:
+            "This email is permanently banned from CampusPress AI for a rules violation. No appeal option is available.",
+          reason: existingEmail.banned_reason ?? "A CampusPress rule was violated.",
+        },
+        { status: 403 },
+      );
+    }
+
     return NextResponse.json(
       {
         ok: false,

@@ -295,6 +295,32 @@ export function AuthPanel() {
       return;
     }
 
+    const token = data.session?.access_token;
+    if (token) {
+      const statusResponse = await fetch("/api/auth/session-status", {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      }).catch(() => null);
+      const accountStatus = statusResponse
+        ? await statusResponse.json().catch(() => null)
+        : null;
+
+      if (statusResponse?.status === 403 || accountStatus?.forceSignOut) {
+        window.sessionStorage.setItem(
+          "campuspress_account_status",
+          JSON.stringify({
+            ...accountStatus,
+            appealToken: accountStatus?.appealToken ?? null,
+            capturedAt: Date.now(),
+          }),
+        );
+        await supabase.auth.signOut({ scope: "local" });
+        setPending(false);
+        router.push("/auth/account-status");
+        return;
+      }
+    }
+
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("role")
