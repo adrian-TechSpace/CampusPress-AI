@@ -1,0 +1,39 @@
+{
+  "tcId": "TC-18",
+  "title": "Suspended and banned accounts are blocked with clear account-status messaging",
+  "status": "PASS",
+  "environment": "production",
+  "appUrl": "https://campuspress-ai.vercel.app",
+  "verifiedAt": "2026-08-02T13:47:54Z",
+  "gitCommit": "5a2cfc8",
+  "vercelDeployment": {
+    "id": "dpl_FBVAyXCChopkVz4FRiDjtdVbH78f",
+    "url": "https://campuspress-3dv6uyomm-campuspress-ai.vercel.app",
+    "target": "production",
+    "status": "Ready"
+  },
+  "supersedes": {
+    "entry": "Previous TC-18 entry",
+    "reason": "The prior TC-18 entry came from a pre-merge local Track 2 worktree and is superseded by this post-merge production run."
+  },
+  "evidence": {
+    "openTabNextRequestRejected": {
+      "route": "/api/auth/session-status",
+      "status": 403,
+      "forceSignOut": true,
+      "sessionStale": true,
+      "accountStatus": "suspended",
+      "reason": "Track 2 open-tab suspension reason msburom7."
+    },
+    "bannedLoginAttemptMessage": true,
+    "screenshots": [
+      "TEST_CASE/evidence/chapter4-20260802/TC-18_live-open-tab-suspended.png",
+      "TEST_CASE/evidence/chapter4-20260802/TC-18_live-banned-login-message.png"
+    ]
+  },
+  "sourceCommand": "TRACK2_APP_URL=https://campuspress-ai.vercel.app node --env-file=.env.local scripts/track2-e2e-proof.mjs",
+  "notes": [
+    "The run exercised the deployed production site after Vercel built commit 5a2cfc8 from main.",
+    "The OpenAI-reachable category suggestion sub-item remains a documented limitation because OpenAI returned insufficient_quota. The category fallback path passed with HTTP 200 and a null suggestion."
+  ]
+}
