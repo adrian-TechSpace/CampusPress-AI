@@ -53,7 +53,7 @@ export function FollowingClient() {
       }
 
       const [{ data: profileRows }, { data: articleRows }] = await Promise.all([
-        supabase.from("profiles").select("id, full_name, role, bio").in("id", ids),
+        supabase.from("public_profiles").select("id, full_name, role, bio").in("id", ids),
         supabase.from("articles").select("author_id, slug").in("author_id", ids),
       ]);
 

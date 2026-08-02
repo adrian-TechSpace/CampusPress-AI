@@ -1,4 +1,4 @@
-import { createAnonSupabaseClient } from "@/lib/supabase-server";
+import { createServiceSupabaseClient } from "@/lib/supabase-server";
 import { publishedArticles, type Article } from "@/lib/reader-data";
 
 type DbArticleRow = {
@@ -33,7 +33,7 @@ type DbArticleRow = {
 };
 
 export async function loadPublishedFeedArticles(limit = 40): Promise<Article[]> {
-  const supabase = createAnonSupabaseClient();
+  const supabase = createServiceSupabaseClient();
   const { data, error } = await supabase
     .from("articles")
     .select(

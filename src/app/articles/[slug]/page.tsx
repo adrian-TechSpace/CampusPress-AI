@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { ArticleActions } from "@/components/reader/article-actions";
 import { ReaderChrome } from "@/components/reader/reader-chrome";
 import { getArticle, getAuthor, publishedArticles } from "@/lib/reader-data";
-import { createAnonSupabaseClient } from "@/lib/supabase-server";
+import { createServiceSupabaseClient } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 
@@ -167,7 +167,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
 }
 
 async function getPublishedArticle(slug: string) {
-  const supabase = createAnonSupabaseClient();
+  const supabase = createServiceSupabaseClient();
   const { data, error } = await supabase
     .from("articles")
     .select("title, excerpt, plain_text, content, featured_image_url, featured_image_alt, published_at, profiles!articles_author_id_fkey(full_name, username)")

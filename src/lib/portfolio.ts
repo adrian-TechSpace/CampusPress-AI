@@ -110,7 +110,7 @@ type AwardedPortfolioBadge = {
 const openAiSignalKeys = new Set(["openai_editorial", "openai_verification"]);
 
 export async function loadJournalistPortfolio(username: string): Promise<JournalistPortfolio | null> {
-  const supabase = createAnonSupabaseClient();
+  const supabase = createServiceSupabaseClient();
   const cleanUsername = username.trim().toLowerCase();
 
   const { data: profile, error: profileError } = await supabase

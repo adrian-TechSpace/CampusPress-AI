@@ -69,7 +69,7 @@ export function ReaderHomeClient({ initialArticles = publishedArticles }: Reader
       const [follows, profiles, readerProfile] = await Promise.all([
         supabase.from("follows").select("following_id").eq("follower_id", id),
         supabase
-          .from("profiles")
+          .from("public_profiles")
           .select("id, full_name, role, bio")
           .eq("role", "journalist")
           .neq("id", id)
