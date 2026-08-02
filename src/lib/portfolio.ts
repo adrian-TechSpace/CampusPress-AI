@@ -290,8 +290,8 @@ function buildPortfolioBadges(
 
   if (profile.verified) {
     badges.set("verified-chrisland-identity", {
-      name: "Verified Chrisland Student/Staff",
-      description: "The university roster cross-check matched this journalist profile.",
+      name: "Verified Chrisland Student",
+      description: "CampusPress matched this account to a Chrisland student record. This confirms identity, not article quality or university endorsement.",
       evidence: profile.verified_at ? `Roster matched on ${formatDate(profile.verified_at)}.` : "Roster matched this profile.",
       tone: "verified",
     });

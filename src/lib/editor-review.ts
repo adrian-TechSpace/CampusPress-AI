@@ -390,18 +390,18 @@ function decisionCopy(action: ReviewDecision, note: string, title: string, revis
   const evidenceBody =
     revisionGuidance.length > 0
       ? revisionGuidance.map((line) => `- ${line}`).join("\n")
-      : "- No specific AI evidence was stored for this article. Use the editor note above as the main revision guidance.";
+      : "- No specific AI Hint was stored for this article. Use the editor note above as the main revision direction.";
 
   return {
     status: "revision_requested",
     notificationType: "revision_requested",
     notificationTitle: "Revision requested",
-    notificationBody: `An editor requested revisions for "${title}". Open your messages for the editor note and AI report evidence to check.`,
+    notificationBody: `An editor requested revisions for "${title}". Open your messages for the editor note and AI Hint.`,
     messageBody: [
       `Revision request for "${title}".`,
       `Editor note: ${note}`,
-      `AI report evidence to check:\n${evidenceBody}`,
-      "Use this as a decision aid. Revise the story against the editor note first, then check the AI evidence for specific claims, grammar, sourcing, or credibility gaps.",
+      `AI Hint:\n${evidenceBody}`,
+      "Use this as a decision aid. Revise the story against the editor note first, then check the AI Hint for specific claims, grammar, sourcing, or credibility gaps.",
     ].join("\n\n"),
     responseMessage: "Revision request sent to the journalist.",
   };

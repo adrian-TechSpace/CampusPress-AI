@@ -6,6 +6,7 @@ import {
   Banknote,
   FileDown,
   FileWarning,
+  Info,
   Loader2,
   RefreshCcw,
   ShieldAlert,
@@ -421,7 +422,27 @@ function UsersPanel({
                 <p className="text-xs text-muted-foreground">{user.email}</p>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline">{user.role}</Badge>
-                  {user.verified ? <Badge variant="verified">Verified</Badge> : <Badge variant="outline">Unverified</Badge>}
+                  {user.verified ? (
+                    <Badge
+                      aria-label="Roster verification means CampusPress matched this account to a Chrisland student record."
+                      className="gap-2"
+                      title="Roster verification means CampusPress matched this account to a Chrisland student record."
+                      variant="verified"
+                    >
+                      Verified Chrisland Student
+                      <Info aria-hidden className="size-3" />
+                    </Badge>
+                  ) : (
+                    <Badge
+                      aria-label="Unverified means no roster match has been recorded for this account yet."
+                      className="gap-2"
+                      title="Unverified means no roster match has been recorded for this account yet."
+                      variant="outline"
+                    >
+                      Unverified
+                      <Info aria-hidden className="size-3" />
+                    </Badge>
+                  )}
                   <Badge variant={user.accountStatus === "active" ? "outline" : "default"}>{user.accountStatus}</Badge>
                 </div>
               </div>

@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Award, BadgeCheck, FileText, ShieldCheck } from "lucide-react";
+import { Award, BadgeCheck, FileText, Info, ShieldCheck } from "lucide-react";
+import type { ReactNode } from "react";
 
 import logo from "../../../assets/Chrisland university logo.webp";
 import campusHero from "../../../assets/Chrisland University College of Law building.jpg";
@@ -43,12 +44,20 @@ export function PortfolioPage({ portfolio }: { portfolio: JournalistPortfolio })
           <div className="grid max-w-4xl gap-5">
             <div className="flex flex-wrap items-center gap-3">
               {profile.verified ? (
-                <Badge variant="verified">
+                <ExplainedBadge
+                  description="Roster verification means CampusPress matched this account to a Chrisland student record. It confirms identity, not article quality or university endorsement."
+                  variant="verified"
+                >
                   <BadgeCheck aria-hidden className="mr-2 size-4" />
-                  Verified Chrisland Student/Staff
-                </Badge>
+                  Verified Chrisland Student
+                </ExplainedBadge>
               ) : (
-                <Badge variant="outline">Unverified profile</Badge>
+                <ExplainedBadge
+                  description="Unverified means no roster match has been recorded for this account yet. The profile can still publish if the account role allows it."
+                  variant="outline"
+                >
+                  Unverified
+                </ExplainedBadge>
               )}
               <Badge variant="outline">{profile.departmentCode}</Badge>
             </div>
@@ -156,6 +165,10 @@ export function PortfolioPage({ portfolio }: { portfolio: JournalistPortfolio })
                 <Award aria-hidden className="size-5 text-primary" />
                 <h2 className="text-lg font-semibold">Earned badges</h2>
               </div>
+              <p className="text-sm leading-6 text-muted-foreground">
+                Achievement badges are earned from CampusPress records, not
+                official university awards or grades.
+              </p>
               {badges.length > 0 ? (
                 <div className="grid gap-3">
                   {badges.map((badge) => (
@@ -181,6 +194,28 @@ function StatBlock({ label, value }: { label: string; value: string }) {
       <p className="text-sm font-semibold text-muted-foreground">{label}</p>
       <p className="text-3xl font-semibold">{value}</p>
     </div>
+  );
+}
+
+function ExplainedBadge({
+  children,
+  description,
+  variant,
+}: {
+  children: ReactNode;
+  description: string;
+  variant: "outline" | "verified";
+}) {
+  return (
+    <Badge
+      aria-label={description}
+      className="gap-2"
+      title={description}
+      variant={variant}
+    >
+      {children}
+      <Info aria-hidden className="size-3" />
+    </Badge>
   );
 }
 

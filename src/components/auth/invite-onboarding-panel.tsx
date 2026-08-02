@@ -21,7 +21,7 @@ type InviteProfile = {
 const orientationCopy: Record<string, string[]> = {
   editor: [
     "Use AI reports as a decision aid, not a verdict.",
-    "Send concrete revision guidance when an article needs work.",
+    "Send a concrete AI Hint when an article needs revision work.",
     "Keep student identity and newsroom records private.",
   ],
   admin: [

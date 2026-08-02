@@ -383,7 +383,7 @@ export function EditorReviewQueueClient() {
                     <div className="grid gap-2">
                       <h2 className="text-xl font-semibold">Editorial decision</h2>
                       <p className="text-sm leading-6 text-muted-foreground">
-                        Use the article text and AI evidence together. Revision and rejection notes should be specific enough for the journalist to act on.
+                        Use the article text, editor judgment, and AI Hint together. Revision and rejection notes should be specific enough for the journalist to act on.
                       </p>
                     </div>
                     <label className="grid gap-2 text-sm font-semibold">
